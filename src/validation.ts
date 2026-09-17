@@ -1,0 +1,35 @@
+// ユーザー入力の正規化・検証。サーバー・admin-ui・アプリ（Expo）の全プロジェクトで
+// 「同じ 1 つの実装」を共有するための純粋関数群（DOM / Node / Workers いずれにも依存しない）。
+//
+// 設計思想（docs/user-profile-edit-decisions.md 2.1）:
+//   検証はサーバーに一元化し、クライアント側で正規化ロジックを二重に持たない（食い違いを防ぐ）。
+// この方針を「実装を 2 つ書かない」= 1 実装を全プロジェクトで共有する、という形で実現する。
+// サーバーはこれを唯一の検証点として使い、クライアントは同じ関数で即時フィードバックできる。
+
+// 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
+export const NAME_MAX_LENGTH = 40;
+
+// 表示名を正規化する。唯一の検証点として全経路（本人 PATCH /api/me・管理者
+// PATCH /admin/api/users/:id・登録 POST /admin/api/users）が通す。
+// 正常系として広く受け入れ、型不正だけをエラーにする方針:
+// - 文字列でなければ null を返す（呼び出し側は invalid_name = 400）。
+// - 前後の空白を落とす。
+// - 空文字（空白のみ含む）は「名無しへ戻す」意図として許可し、空文字を返す
+//   （表示名は authorId から都度解決し、未設定は '名無し' にフォールバックするため）。
+// - NAME_MAX_LENGTH を超えたら切り捨てる（エラーにはしない）。
+export function normalizeName(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  return input.trim().slice(0, NAME_MAX_LENGTH);
+}
+
+// メールアドレスを正規化する。唯一の検証点として登録 POST /admin/api/users と
+// 更新 PATCH /admin/api/users/:id・PATCH /api/me が通す。
+// 前後の空白を落として小文字化し、形式が不正なら null を返す（呼び出し側は invalid_email = 400）。
+// 形式判定は簡易チェック（@ の前後に空白なしの文字列とドメイン）。厳密な RFC 準拠は狙わない
+// （到達確認は OTP ログインが担うため、ここは明らかな誤りを弾く軽量チェックに留める）。
+export function normalizeEmail(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  const normalized = input.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return null;
+  return normalized;
+}
