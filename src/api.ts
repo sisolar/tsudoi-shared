@@ -16,6 +16,9 @@ export interface UserDto {
   emailVerified: boolean;
   createdAt: string; // Better Auth が返す日時文字列
   isAdmin: boolean;
+  // アバター画像の id（image.id）。未設定なら null。バイナリ・状態は持たない（キーだけ）。
+  // Better Auth 既定の image（URL 想定）からリネームした列。id を保持することを明示する。
+  avatarImageId: string | null;
 }
 
 // GET /admin/api/users の応答。
@@ -64,6 +67,8 @@ export interface MeDto {
   id: string;
   email: string;
   name: string;
+  // 本人のアバター画像 id（image.id）。未設定なら null。設定画面のアイコン表示に使う。
+  avatarImageId: string | null;
 }
 
 // GET /api/me の応答。
@@ -106,6 +111,9 @@ export interface CreateRoomResponse {
 // DO（サーバー）が保存・配信する形をそのまま管理画面へも共有する。
 export type MessageBody =
   | { type: 'text'; text: string }
+  // 画像メッセージ。本文には画像 id だけを載せる（寸法の真実の源は D1 image 表 = ImageDto）。
+  // 二重持ちを避けるため width/height は本文に持たせない（docs 5.2）。
+  | { type: 'image'; imageId: string }
   | { type: string; [k: string]: unknown };
 
 // メッセージ1件の公開表現。seq は DO が採番する連番。
@@ -135,4 +143,56 @@ export interface ListRoomMessagesQuery {
 export interface ListRoomMessagesResponse {
   messages: AdminChatMessage[];
   hasMore: boolean;
+}
+
+// --- 画像アップロード基盤（avatar / chat 共通。docs/image-upload-decisions.md） ---
+
+// 画像の用途。同じ 1 つの基盤で扱い、用途を増やすときはここへ足すだけにする。
+// - 'avatar': ユーザーアイコン（user.avatarImageId から 1 枚を参照）。
+// - 'chat'  : チャット画像（MessageBody の image から imageId で参照）。
+// （将来）'album' などを足す場合もこの union を広げるだけで基盤に載る。
+export type ImageUsage = 'avatar' | 'chat';
+
+// 検閲状態（状態の真実の源は D1 image 表）。
+// - 'pending' : 検閲待ち。他ユーザーへはぼかしサムネのみ、本人には通常サムネ/原寸。
+// - 'approved': 承認済み。全員へ通常サムネ/原寸を公開。
+// - 'rejected': 却下。アプリ配信（/api/images）は本人・他人とも全 variant で停止する。
+//   実体（R2 の 3 種・D1 行）は削除しない（再審査・監査のため残す）。管理者の raw 経路でのみ閲覧可。
+export type ImageStatus = 'pending' | 'approved' | 'rejected';
+
+// アプリ配信 GET /api/images/:id?variant=... の variant。
+// - 'thumb': 一覧・チャット内などの通常表示用サムネ。
+// - 'full' : タップ等の拡大表示用オリジナル。
+// variant は省略不可（クライアントは必ず指定する。省略はサーバーで 400）。
+export type ImageVariant = 'thumb' | 'full';
+
+// 画像 1 件の公開表現（メタ）。バイナリは含まない（配信は GET /api/images/:id）。
+// width/height/bytes は「配信用オリジナル（orig）」の確定値（真実の源は D1）。
+export interface ImageDto {
+  id: string;
+  ownerId: string;
+  usage: ImageUsage;
+  status: ImageStatus;
+  mime: string; // サーバー再圧縮後の確定 MIME（image/webp）
+  width: number; // orig の幅（px）
+  height: number; // orig の高さ（px）
+  bytes: number; // orig のサイズ（byte）
+  createdAt: number; // epoch ms
+  reviewedAt: number | null; // 検閲時刻。未検閲は null
+  reviewedBy: string | null; // 検閲した管理者の user.id。未検閲は null
+}
+
+// POST /api/images の応答。id・status・width/height 等を ImageDto で返す。
+export interface UploadImageResponse {
+  image: ImageDto;
+}
+
+// GET /admin/api/images の応答（検閲キュー／一覧）。古い順（検閲待ちを先に）。
+export interface ListImagesResponse {
+  images: ImageDto[];
+}
+
+// GET /admin/api/images/:id の応答（検閲パネル用の 1 件メタ取得）。
+export interface GetImageResponse {
+  image: ImageDto;
 }

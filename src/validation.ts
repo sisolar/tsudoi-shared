@@ -33,3 +33,45 @@ export function normalizeEmail(input: unknown): string | null {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return null;
   return normalized;
 }
+
+// --- 画像アップロードの検証（サーバーに一元化する唯一の検証点） ---
+// 規定値は @shared/image-constraints に集約し、クライアント・サーバーが同じ値で判定する
+// （docs/image-upload-decisions.md 6・9 章）。ここは純粋関数のみ（バイナリ処理は持たない）。
+
+import {
+  ALLOWED_INPUT_MIMES,
+  MAX_INPUT_PIXELS,
+  MAX_UPLOAD_BYTES,
+} from './image-constraints';
+import type { ImageUsage, ImageVariant } from './api';
+
+// 入力 MIME が受け入れ対象か。想定外（動画・SVG 等）を弾く軽量チェック。
+// 実デコード可否・寸法はサーバーが Photon で最終確認するため、ここは前段の軽い門番。
+export function isAllowedImageMime(mime: unknown): mime is (typeof ALLOWED_INPUT_MIMES)[number] {
+  return typeof mime === 'string' && (ALLOWED_INPUT_MIMES as readonly string[]).includes(mime);
+}
+
+// アップロードのバイト数が上限内か（0 より大きく MAX_UPLOAD_BYTES 以下）。
+export function isAllowedImageBytes(bytes: unknown): boolean {
+  return typeof bytes === 'number' && Number.isFinite(bytes) && bytes > 0 && bytes <= MAX_UPLOAD_BYTES;
+}
+
+// デコード後のピクセル数（幅 × 高さ）が上限内か（デコード爆弾対策）。
+export function isAllowedImagePixels(width: unknown, height: unknown): boolean {
+  if (typeof width !== 'number' || typeof height !== 'number') return false;
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+  if (width <= 0 || height <= 0) return false;
+  return width * height <= MAX_INPUT_PIXELS;
+}
+
+// usage 文字列が既知の用途か（POST /api/images の usage 検証点）。
+// 未知はフォールバックせずここで弾く（呼び出し側は invalid_usage=400）。
+export function isImageUsage(input: unknown): input is ImageUsage {
+  return input === 'avatar' || input === 'chat';
+}
+
+// variant 文字列が既知か（GET /api/images/:id?variant= の検証点）。
+// 省略不可・未知不可（呼び出し側は invalid_variant=400）。
+export function isImageVariant(input: unknown): input is ImageVariant {
+  return input === 'thumb' || input === 'full';
+}
