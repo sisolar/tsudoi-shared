@@ -1,9 +1,9 @@
-// 管理APIのリクエスト/レスポンス契約。サーバー(src/admin.ts, src/rooms.ts)と
-// 管理画面(admin-ui/src/api.ts)の「両方」から import して共有する。
+// tsudoi の API リクエスト/レスポンス契約。管理者向け・本人向け・部屋など、
+// サーバー(src/*)・管理画面(admin-ui/src/*)・アプリ(tsudoi-app/src/*) が import して共有する。
 //
-// ここには Cloudflare Workers / DOM 依存の型を書かない（純粋な型のみ）。
-// そうすることで、workers-types を持たない admin-ui からも安全に import でき、
-// プロパティ名の食い違い（例: name を title と書く等）をコンパイラが両側で検出できる。
+// ここには Cloudflare Workers / DOM / React Native 依存の型を書かない（純粋な型のみ）。
+// そうすることで、workers-types を持たない admin-ui やアプリからも安全に import でき、
+// プロパティ名の食い違い（例: name を title と書く等）をコンパイラが各所で検出できる。
 
 // --- ユーザー（事前登録） ---
 

@@ -9,7 +9,7 @@ tsudoi の共有コード。**サーバー（tsudoi-server）・管理画面（a
 
 ## 構成
 
-- `src/admin-api.ts` — 管理 API / 本人 API のリクエスト・レスポンス契約型。
+- `src/api.ts` — API のリクエスト・レスポンス契約型（管理者向け・本人向け・部屋など）。
 - `src/validation.ts` — 入力の正規化・検証（`normalizeName` / `normalizeEmail` / `NAME_MAX_LENGTH`）。
 - `src/index.ts` — 公開エントリ（barrel）。
 
@@ -18,7 +18,7 @@ tsudoi の共有コード。**サーバー（tsudoi-server）・管理画面（a
 各プロジェクトは `@shared/*` エイリアスでこのリポジトリの `src/*` を参照する。
 
 ```ts
-import type { UserDto } from '@shared/admin-api';
+import type { UserDto } from '@shared/api';
 import { normalizeEmail } from '@shared/validation';
 ```
 

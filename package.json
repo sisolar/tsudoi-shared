@@ -9,7 +9,7 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./admin-api": "./src/admin-api.ts",
-    "./validation": "./src/validation.ts"
+    "./validation": "./src/validation.ts",
+    "./api": "./src/api.ts"
   }
 }
