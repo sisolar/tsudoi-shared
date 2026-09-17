@@ -2,14 +2,12 @@
   "name": "tsudoi-shared",
   "version": "1.0.0",
   "description": "tsudoi shared code (API contract types and input validation). One implementation shared by server, admin-ui, and app.",
-  "main": "src/index.ts",
   "license": "ISC",
   "type": "module",
-  "types": "src/index.ts",
   "private": true,
   "exports": {
-    ".": "./src/index.ts",
-    "./validation": "./src/validation.ts",
-    "./api": "./src/api.ts"
+    "./api": "./src/api.ts",
+    "./client": "./src/client.ts",
+    "./validation": "./src/validation.ts"
   }
 }

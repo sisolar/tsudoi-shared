@@ -1,0 +1,87 @@
+// tsudoi の HTTP API クライアント。サーバー（GET/PATCH /api/me・GET /api/rooms(/:id)）を
+// 叩く実装を 1 つに集約し、サーバー・管理画面（admin-ui）・アプリ（tsudoi-app）で共有する
+// （fetch とエラー処理の二重持ちを避ける）。
+//
+// ランタイム差（接続先・認証ヘッダ）は依存注入で吸収する:
+// - baseUrl:    接続先オリジン（例: `https://${HOST}`）。末尾スラッシュは付けない。
+// - getHeaders: 各リクエストに合流させる追加ヘッダを返す注入点。呼ばれる度に評価する。
+//   ネイティブ（アプリ）には Cookie ストアが無いため、Better Auth が SecureStore に保管した
+//   セッション Cookie を手動で Cookie ヘッダへ載せる。ブラウザ（admin-ui）は Cookie が
+//   自動送信されるため省略できる。
+//
+// 契約型は公開エイリアス @shared/api を経由して取り込む（相対 ./api への直 import はしない）。
+// これで消費側 3 プロジェクトすべてが同じ入口で型を共有し、参照の出所を一本化できる。
+//
+// fetch / Response はどのランタイム（RN・ブラウザ・Workers・Node18+）にもグローバルで存在する。
+// 型解決のためだけに shared の tsconfig の lib に "dom" を含めている（実行時依存は無い）。
+import type {
+  GetRoomResponse,
+  ListRoomsResponse,
+  MeDto,
+  MeResponse,
+  RoomDto,
+  UpdateUserRequest,
+} from '@shared/api';
+
+// 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
+export type ExtraHeaders = Record<string, string>;
+
+export interface ApiClientOptions {
+  baseUrl: string;
+  getHeaders?: () => Promise<ExtraHeaders> | ExtraHeaders;
+}
+
+export interface ApiClient {
+  // 自分の情報を取得する（設定画面の初期値など）。失敗時は例外を投げる。
+  fetchMe(): Promise<MeDto>;
+  // 自分のプロフィール（表示名・メール）を更新する。成功時サーバーは 204。
+  updateMe(req: UpdateUserRequest): Promise<void>;
+  // 有効な部屋を新しい順に取得する。
+  fetchRooms(): Promise<RoomDto[]>;
+  // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
+  fetchRoom(id: string): Promise<RoomDto>;
+}
+
+export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
+  // 共通の fetch。認証ヘッダの合流・非 2xx の例外化を 1 か所に集約する。
+  async function request(
+    path: string,
+    init?: { method?: string; headers?: ExtraHeaders; body?: string },
+  ): Promise<Response> {
+    const extra = getHeaders ? await getHeaders() : undefined;
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: init?.method,
+      headers: { ...extra, ...init?.headers },
+      body: init?.body,
+    });
+    if (!res.ok) throw new Error(`request ${path} failed: ${res.status}`);
+    return res;
+  }
+
+  return {
+    async fetchMe() {
+      const res = await request('/api/me');
+      const data = (await res.json()) as Partial<MeResponse>;
+      if (!data.user) throw new Error('me not found');
+      return data.user;
+    },
+    async updateMe(req) {
+      await request('/api/me', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async fetchRooms() {
+      const res = await request('/api/rooms');
+      const data = (await res.json()) as Partial<ListRoomsResponse>;
+      return data.rooms ?? [];
+    },
+    async fetchRoom(id) {
+      const res = await request(`/api/rooms/${id}`);
+      const data = (await res.json()) as Partial<GetRoomResponse>;
+      if (!data.room) throw new Error('room not found');
+      return data.room;
+    },
+  };
+}

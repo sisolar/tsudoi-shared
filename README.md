@@ -3,15 +3,18 @@
 tsudoi の共有コード。**サーバー（tsudoi-server）・管理画面（admin-ui）・アプリ（tsudoi-app）の
 3 プロジェクトで「1 つの実装」を共有する**ための、純粋な型・関数だけを置く。
 
-- DOM / Node / Cloudflare Workers いずれにも依存しない（どのランタイムからも安全に import できる）。
+- 特定ランタイム（Node / Cloudflare Workers / React Native）固有の API に依存しない。
+  HTTP クライアントはどのランタイムにもあるグローバル `fetch` だけを使い、接続先・認証ヘッダは
+  依存注入で受け取る（ランタイム差は各プロジェクトが吸収する）。
 - ここに実装が 1 つあることで、検証ロジックの二重定義による食い違いを構造的に防ぐ
   （設計思想は `docs/user-profile-edit-decisions.md` 2.1）。
 
 ## 構成
 
 - `src/api.ts` — API のリクエスト・レスポンス契約型（管理者向け・本人向け・部屋など）。
+- `src/client.ts` — API を叩く HTTP クライアント（`createApiClient`）。接続先・認証ヘッダは
+  依存注入（`baseUrl` / `getHeaders`）で受け取り、ランタイム差を各プロジェクトが吸収する。
 - `src/validation.ts` — 入力の正規化・検証（`normalizeName` / `normalizeEmail` / `NAME_MAX_LENGTH`）。
-- `src/index.ts` — 公開エントリ（barrel）。
 
 ## import 方法
 
@@ -19,6 +22,7 @@ tsudoi の共有コード。**サーバー（tsudoi-server）・管理画面（a
 
 ```ts
 import type { UserDto } from '@shared/api';
+import { createApiClient } from '@shared/client';
 import { normalizeEmail } from '@shared/validation';
 ```
 
