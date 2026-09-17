@@ -99,3 +99,40 @@ export interface CreateRoomRequest {
 export interface CreateRoomResponse {
   room: RoomDto;
 }
+
+// --- 部屋のメッセージ（Room DO に蓄積されたチャット履歴） ---
+
+// メッセージ本文。当面は text のみ。将来 type を増やして装飾に対応する。
+// DO（サーバー）が保存・配信する形をそのまま管理画面へも共有する。
+export type MessageBody =
+  | { type: 'text'; text: string }
+  | { type: string; [k: string]: unknown };
+
+// メッセージ1件の公開表現。seq は DO が採番する連番。
+// authorName は authorId から D1 の user.name を解決した値（未設定は「名無し」）。
+// sentAt は epoch ms。管理画面の一覧・アプリの配信/履歴で同じ形を共有する。
+export interface AdminChatMessage {
+  seq: number;
+  authorId: string;
+  authorName: string;
+  body: MessageBody;
+  sentAt: number;
+}
+
+// GET /admin/api/rooms/:id/messages のクエリ。DO の履歴カーソルをそのまま公開する。
+// - limit: 取得件数（1〜100）。省略時はサーバー既定の直近 N 件。
+// - before: この seq より古い側へ遡る（履歴ページング）。省略時は最新側から。
+// サーバーの内部取得（fetchRoomMessagesDO）とクライアント（listRoomMessages）で共有し、
+// 引数の形の出所を一本化する（片方だけ変えて食い違う事故をコンパイラが検出する）。
+export interface ListRoomMessagesQuery {
+  limit?: number;
+  before?: number;
+}
+
+// GET /admin/api/rooms/:id/messages の応答。
+// DO の履歴取得（/history）をそのまま束ねる。messages は seq 昇順（古い→新しい）。
+// hasMore は「まだ古いメッセージが残っているか」（true なら before で遡れる）。
+export interface ListRoomMessagesResponse {
+  messages: AdminChatMessage[];
+  hasMore: boolean;
+}
