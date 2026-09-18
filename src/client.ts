@@ -33,6 +33,16 @@ import type {
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
 export type ExtraHeaders = Record<string, string>;
 
+// アップロードするファイルの表現。プラットフォームで最適な形が異なるため 2 形を受ける:
+//  - { uri, name, type }: React Native（アプリ）向け。ネイティブが uri のファイルをディスクから
+//    直接 multipart に流し込む（JS へバイトを読み込まないため base64 コピーが無く最速・低メモリ）。
+//    name は multipart の filename、type は content-type（例: image/jpeg）として載る。
+//  - Blob/File          : ブラウザ（admin-ui）向け。<input type="file"> 等で得た File をそのまま渡す。
+// いずれも FormData の 'file' パートへそのまま append できる（RN・ブラウザ双方の FormData が解釈する）。
+// type（content-type）は必ず埋めること（空だとサーバーの MIME 検証で弾かれる: invalid_mime=400）。
+export type UploadFileUri = { uri: string; name: string; type: string };
+export type UploadFile = UploadFileUri | Blob;
+
 export interface ApiClientOptions {
   baseUrl: string;
   getHeaders?: () => Promise<ExtraHeaders> | ExtraHeaders;
@@ -57,9 +67,9 @@ export interface ApiClient {
   // chat のとき roomId を渡すと、サーバーがアップロードと同じリクエストの中でその部屋の
   // Room DO へ画像メッセージ（{type:'image', imageId}）を保存する
   //（チャット画像の送信は HTTP に一本化。WS で id を送り直さない）。
-  // file はプラットフォーム非依存の Blob（RN の { uri, name, type } は呼び出し側で Blob 化するか、
-  // FormData に直接載せてから formData 引数で渡す）。ここでは Blob/File を受ける。
-  uploadImage(file: Blob, usage: ImageUsage, roomId?: string): Promise<ImageDto>;
+  // file は Blob/File（ブラウザ）または { uri, name, type }（React Native）を受ける（UploadFile）。
+  // RN は uri 形式を渡すこと。ネイティブがファイルを直接読み込むため JS でのバイトコピーが不要で速い。
+  uploadImage(file: UploadFile, usage: ImageUsage, roomId?: string): Promise<ImageDto>;
   // 画像バイナリの配信 URL を組み立てる（<Image source={{uri}}> 等に渡す）。variant は省略不可。
   // 実体の出し分け（本人/他人・status）はサーバーが決めるため、URL は id と variant だけで足りる。
   imageUrl(id: string, variant: ImageVariant): string;
@@ -128,9 +138,10 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       // ここで手動指定しない（指定すると boundary が欠けて受信側でパースに失敗する）。
       const form = new FormData();
       form.append('usage', usage);
-      // file part の content-type は Blob の type から載る。呼び出し側で必ず type 付きの Blob を渡すこと
-      //（type が空だと受信側の file.type が空になり、サーバーの MIME 検証で弾かれる: invalid_mime=400）。
-      form.append('file', file);
+      // file パートをそのまま載せる。RN の { uri, name, type } はネイティブが uri のファイルを直接読み、
+      // filename（name）・content-type（type）を付けて送る。ブラウザの Blob/File はそのまま送られる
+      //（File なら filename・type を保持）。どちらも受信側で File として復元できる。
+      form.append('file', file as Blob);
       // chat のときだけ roomId を載せる（サーバーが同リクエストでメッセージ化する）。
       if (roomId) form.append('roomId', roomId);
       const extra = getHeaders ? await getHeaders() : undefined;
