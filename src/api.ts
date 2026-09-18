@@ -109,12 +109,14 @@ export interface CreateRoomResponse {
 
 // メッセージ本文。当面は text のみ。将来 type を増やして装飾に対応する。
 // DO（サーバー）が保存・配信する形をそのまま管理画面へも共有する。
+// 本文は text か image の 2 種のみ（未知 type は型レベルで拒否する）。
+// - text : プレーンテキスト。
+// - image: 本文には画像 id だけを載せる（寸法の真実の源は D1 image 表 = ImageDto）。
+//   二重持ちを避けるため width/height は本文に持たせない（docs 5.2）。
+// 将来 type を増やすときはこの union を明示的に広げる（素通し用のワイルドカードは持たない）。
 export type MessageBody =
   | { type: 'text'; text: string }
-  // 画像メッセージ。本文には画像 id だけを載せる（寸法の真実の源は D1 image 表 = ImageDto）。
-  // 二重持ちを避けるため width/height は本文に持たせない（docs 5.2）。
-  | { type: 'image'; imageId: string }
-  | { type: string; [k: string]: unknown };
+  | { type: 'image'; imageId: string };
 
 // メッセージ1件の公開表現。seq は DO が採番する連番。
 // authorName は authorId から D1 の user.name を解決した値（未設定は「名無し」）。
