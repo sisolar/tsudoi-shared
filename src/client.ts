@@ -50,9 +50,12 @@ export interface ApiClient {
   // --- 画像アップロード基盤（アプリ・admin-ui 共通） ---
   // 画像をアップロードする唯一の入口。multipart/form-data（file + usage）で送る。
   // avatar のときサーバーが user.avatarImageId を張り替える。応答は確定した ImageDto。
+  // chat のとき roomId を渡すと、サーバーがアップロードと同じリクエストの中でその部屋の
+  // Room DO へ画像メッセージ（{type:'image', imageId}）を保存する
+  //（チャット画像の送信は HTTP に一本化。WS で id を送り直さない）。
   // file はプラットフォーム非依存の Blob（RN の { uri, name, type } は呼び出し側で Blob 化するか、
   // FormData に直接載せてから formData 引数で渡す）。ここでは Blob/File を受ける。
-  uploadImage(file: Blob, usage: ImageUsage, filename?: string): Promise<ImageDto>;
+  uploadImage(file: Blob, usage: ImageUsage, roomId?: string): Promise<ImageDto>;
   // 画像バイナリの配信 URL を組み立てる（<Image source={{uri}}> 等に渡す）。variant は省略不可。
   // 実体の出し分け（本人/他人・status）はサーバーが決めるため、URL は id と variant だけで足りる。
   imageUrl(id: string, variant: ImageVariant): string;
@@ -108,12 +111,14 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       return data.room;
     },
 
-    async uploadImage(file, usage, filename) {
+    async uploadImage(file, usage, roomId) {
       // multipart/form-data で送る。content-type は fetch が boundary 付きで自動設定するため、
       // ここで手動指定しない（指定すると boundary が欠けて受信側でパースに失敗する）。
       const form = new FormData();
       form.append('usage', usage);
-      form.append('file', file, filename);
+      form.append('file', file);
+      // chat のときだけ roomId を載せる（サーバーが同リクエストでメッセージ化する）。
+      if (roomId) form.append('roomId', roomId);
       const extra = getHeaders ? await getHeaders() : undefined;
       const res = await fetch(`${baseUrl}/api/images`, {
         method: 'POST',
