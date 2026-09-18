@@ -16,11 +16,17 @@
 // 型解決のためだけに shared の tsconfig の lib に "dom" を含めている（実行時依存は無い）。
 import type {
   GetRoomResponse,
+  ImageDto,
+  ImageStatus,
+  ImageUsage,
+  ImageVariant,
+  ListImagesResponse,
   ListRoomsResponse,
   MeDto,
   MeResponse,
   RoomDto,
   UpdateUserRequest,
+  UploadImageResponse,
 } from '@shared/api';
 
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
@@ -40,6 +46,24 @@ export interface ApiClient {
   fetchRooms(): Promise<RoomDto[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
+
+  // --- 画像アップロード基盤（アプリ・admin-ui 共通） ---
+  // 画像をアップロードする唯一の入口。multipart/form-data（file + usage）で送る。
+  // avatar のときサーバーが user.avatarImageId を張り替える。応答は確定した ImageDto。
+  // file はプラットフォーム非依存の Blob（RN の { uri, name, type } は呼び出し側で Blob 化するか、
+  // FormData に直接載せてから formData 引数で渡す）。ここでは Blob/File を受ける。
+  uploadImage(file: Blob, usage: ImageUsage, filename?: string): Promise<ImageDto>;
+  // 画像バイナリの配信 URL を組み立てる（<Image source={{uri}}> 等に渡す）。variant は省略不可。
+  // 実体の出し分け（本人/他人・status）はサーバーが決めるため、URL は id と variant だけで足りる。
+  imageUrl(id: string, variant: ImageVariant): string;
+
+  // --- 管理者専用（admin-ui の画像管理画面からのみ） ---
+  // 画像一覧（検閲キュー）。status 指定で絞る（省略時は全件）。古い順で返る。
+  listImages(status?: ImageStatus): Promise<ImageDto[]>;
+  // 承認。全員へ通常サムネ/原寸を公開する。
+  approveImage(id: string): Promise<void>;
+  // 却下。アプリ配信を停止する（実体は残す）。
+  rejectImage(id: string): Promise<void>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -82,6 +106,40 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const data = (await res.json()) as Partial<GetRoomResponse>;
       if (!data.room) throw new Error('room not found');
       return data.room;
+    },
+
+    async uploadImage(file, usage, filename) {
+      // multipart/form-data で送る。content-type は fetch が boundary 付きで自動設定するため、
+      // ここで手動指定しない（指定すると boundary が欠けて受信側でパースに失敗する）。
+      const form = new FormData();
+      form.append('usage', usage);
+      form.append('file', file, filename);
+      const extra = getHeaders ? await getHeaders() : undefined;
+      const res = await fetch(`${baseUrl}/api/images`, {
+        method: 'POST',
+        headers: { ...extra },
+        body: form,
+      });
+      if (!res.ok) throw new Error(`upload image failed: ${res.status}`);
+      const data = (await res.json()) as Partial<UploadImageResponse>;
+      if (!data.image) throw new Error('image not returned');
+      return data.image;
+    },
+    imageUrl(id, variant) {
+      return `${baseUrl}/api/images/${id}?variant=${variant}`;
+    },
+
+    async listImages(status) {
+      const path = status ? `/admin/api/images?status=${status}` : '/admin/api/images';
+      const res = await request(path);
+      const data = (await res.json()) as Partial<ListImagesResponse>;
+      return data.images ?? [];
+    },
+    async approveImage(id) {
+      await request(`/admin/api/images/${id}/approve`, { method: 'POST' });
+    },
+    async rejectImage(id) {
+      await request(`/admin/api/images/${id}/reject`, { method: 'POST' });
     },
   };
 }
