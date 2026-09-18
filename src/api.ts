@@ -118,6 +118,16 @@ export type MessageBody =
   | { type: 'text'; text: string }
   | { type: 'image'; imageId: string };
 
+// POST /api/rooms/:id/messages のリクエストボディ（アプリのテキスト送信）。
+// メッセージ送信は HTTP に一本化する（WebSocket は受信=配信専用）。本文は MessageBody を載せる。
+// テキストは { type:'text', text } を送る。画像は POST /api/images(usage='chat', roomId) 側で
+// サーバーがメッセージ化するため、この経路では送らない（text 専用の入口）。
+// authorId はセッションから解決するためクライアントは送らない。
+// 送信の可否（WebSocket 接続中のみ送れる等）はクライアントの UX 判断であり、サーバーは関与しない。
+export interface SendMessageRequest {
+  body: MessageBody;
+}
+
 // メッセージ1件の公開表現。seq は DO が採番する連番。
 // authorName は authorId から D1 の user.name を解決した値（未設定は「名無し」）。
 // sentAt は epoch ms。管理画面の一覧・アプリの配信/履歴で同じ形を共有する。
