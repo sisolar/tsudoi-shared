@@ -128,7 +128,10 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       // ここで手動指定しない（指定すると boundary が欠けて受信側でパースに失敗する）。
       const form = new FormData();
       form.append('usage', usage);
-      form.append('file', file);
+      // filename を明示して file part を「名前付きの File」として確実に送る（既定の "blob" 依存を避ける）。
+      // MIME（content-type）は file（Blob）の type から載るため、呼び出し側で type 付きの Blob を渡すこと
+      //（type が空だと受信側の file.type が空になり、サーバーの MIME 検証で弾かれる）。
+      form.append('file', file, 'upload.jpg');
       // chat のときだけ roomId を載せる（サーバーが同リクエストでメッセージ化する）。
       if (roomId) form.append('roomId', roomId);
       const extra = getHeaders ? await getHeaders() : undefined;
