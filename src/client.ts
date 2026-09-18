@@ -25,6 +25,7 @@ import type {
   MeDto,
   MeResponse,
   RoomDto,
+  SendMessageRequest,
   UpdateUserRequest,
   UploadImageResponse,
 } from '@shared/api';
@@ -46,6 +47,9 @@ export interface ApiClient {
   fetchRooms(): Promise<RoomDto[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
+  // テキストメッセージを送信する（送信は HTTP に一本化。WebSocket は受信=配信専用）。
+  // 成功時サーバーは 204。自分の吹き出しはサーバーからの WS 配信で表示される。
+  sendTextMessage(roomId: string, text: string): Promise<void>;
 
   // --- 画像アップロード基盤（アプリ・admin-ui 共通） ---
   // 画像をアップロードする唯一の入口。multipart/form-data（file + usage）で送る。
@@ -109,6 +113,14 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const data = (await res.json()) as Partial<GetRoomResponse>;
       if (!data.room) throw new Error('room not found');
       return data.room;
+    },
+    async sendTextMessage(roomId, text) {
+      const req: SendMessageRequest = { body: { type: 'text', text } };
+      await request(`/api/rooms/${roomId}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
     },
 
     async uploadImage(file, usage, roomId) {
