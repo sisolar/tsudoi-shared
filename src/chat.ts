@@ -10,6 +10,9 @@ export interface ChatMessage {
   seq?: number; // サーバー採番。履歴取得/新着マージのカーソルに使う。
   authorId: string;
   authorName: string;
+  // 送信者のアバター画像 id（user.avatarImageId）。未設定なら null。
+  // authorName と同じく DO が配信・履歴の直前に authorId から解決して載せる（キーだけ）。
+  avatarImageId: string | null;
   body: MessageBody;
   sentAt: number; // epoch ms
   read?: boolean; // outgoing only

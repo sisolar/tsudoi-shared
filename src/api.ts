@@ -140,13 +140,19 @@ export interface SendMessageRequest {
   body: MessageBody;
 }
 
-// メッセージ1件の公開表現。seq は DO が採番する連番。
+// サーバー(DO)が配信・履歴で吐く「メッセージ1件の公開表現（DTO）」。seq は DO が採番する連番。
+// 同じ API（DO の /history・WS 配信）を、サーバー・管理画面・アプリが同じ形で受け取るための
+// 唯一の契約。各プロジェクトでワイヤー型を再定義しない（食い違いを構造的に防ぐ）。
 // authorName は authorId から D1 の user.name を解決した値（未設定は「名無し」）。
-// sentAt は epoch ms。管理画面の一覧・アプリの配信/履歴で同じ形を共有する。
-export interface AdminChatMessage {
+// avatarImageId は authorId から D1 の user.avatarImageId を解決した値（未設定は null）。
+//   authorName と同じく保持せず配信・履歴の直前に解決するため、改名・アイコン差し替えが即反映される
+//   （バイナリ・状態は持たずキーだけ）。
+// sentAt は epoch ms。
+export interface ChatMessageDto {
   seq: number;
   authorId: string;
   authorName: string;
+  avatarImageId: string | null;
   body: MessageBody;
   sentAt: number;
 }
@@ -165,7 +171,7 @@ export interface ListRoomMessagesQuery {
 // DO の履歴取得（/history）をそのまま束ねる。messages は seq 昇順（古い→新しい）。
 // hasMore は「まだ古いメッセージが残っているか」（true なら before で遡れる）。
 export interface ListRoomMessagesResponse {
-  messages: AdminChatMessage[];
+  messages: ChatMessageDto[];
   hasMore: boolean;
 }
 
