@@ -13,6 +13,7 @@ tsudoi の共有コード。**サーバー（tsudoi-server）・管理画面（a
 
 - `src/api.ts` — API のリクエスト・レスポンス契約型（管理者向け・本人向け・部屋など）。
 - `src/chat.ts` — チャットの画面表示用の型・ヘルパー（`ChatMessage` / `bodyText`）。本文型は `api.ts` の `MessageBody` を使う。
+- `src/sns.ts` — SNS プロフィール画面の表示用の型（`SnsProfile` / `SnsPost` / `SnsStats`）。投稿本文は `api.ts` の `MessageBody` を再利用する。
 - `src/client.ts` — API を叩く HTTP クライアント（`createApiClient`）。接続先・認証ヘッダは
   依存注入（`baseUrl` / `getHeaders`）で受け取り、ランタイム差を各プロジェクトが吸収する。
 - `src/validation.ts` — 入力の正規化・検証（`normalizeName` / `normalizeEmail` / `NAME_MAX_LENGTH`）。
