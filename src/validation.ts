@@ -6,6 +6,14 @@
 // この方針を「実装を 2 つ書かない」= 1 実装を全プロジェクトで共有する、という形で実現する。
 // サーバーはこれを唯一の検証点として使い、クライアントは同じ関数で即時フィードバックできる。
 
+// 画像アップロード検証で使う規定値・型（唯一の出所は @shared/image-constraints と ./api）。
+import {
+  ALLOWED_INPUT_MIMES,
+  MAX_INPUT_PIXELS,
+  MAX_UPLOAD_BYTES,
+} from './image-constraints';
+import type { ImageUsage, ImageVariant } from './api';
+
 // 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
 export const NAME_MAX_LENGTH = 40;
 
@@ -37,13 +45,7 @@ export function normalizeEmail(input: unknown): string | null {
 // --- 画像アップロードの検証（サーバーに一元化する唯一の検証点） ---
 // 規定値は @shared/image-constraints に集約し、クライアント・サーバーが同じ値で判定する
 // （docs/image-upload-decisions.md 6・9 章）。ここは純粋関数のみ（バイナリ処理は持たない）。
-
-import {
-  ALLOWED_INPUT_MIMES,
-  MAX_INPUT_PIXELS,
-  MAX_UPLOAD_BYTES,
-} from './image-constraints';
-import type { ImageUsage, ImageVariant } from './api';
+// 使用する定数・型は先頭の import 群でまとめて読み込む（import/first）。
 
 // 入力 MIME が受け入れ対象か。想定外（動画・SVG 等）を弾く軽量チェック。
 // 実デコード可否・寸法はサーバーが Photon で最終確認するため、ここは前段の軽い門番。
