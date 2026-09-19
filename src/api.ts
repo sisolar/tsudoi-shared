@@ -165,13 +165,6 @@ export interface ListRoomMessagesResponse {
 // （将来）'album' などを足す場合もこの union を広げるだけで基盤に載る。
 export type ImageUsage = 'avatar' | 'chat';
 
-// 検閲状態（状態の真実の源は D1 image 表）。
-// - 'pending' : 検閲待ち。他ユーザーへはぼかしサムネのみ、本人には通常サムネ/原寸。
-// - 'approved': 承認済み。全員へ通常サムネ/原寸を公開。
-// - 'rejected': 却下。アプリ配信（/api/images）は本人・他人とも全 variant で停止する。
-//   実体（R2 の 3 種・D1 行）は削除しない（再審査・監査のため残す）。管理者の raw 経路でのみ閲覧可。
-export type ImageStatus = 'pending' | 'approved' | 'rejected';
-
 // アプリ配信 GET /api/images/:id?variant=... の variant。
 // - 'thumb': 一覧・チャット内などの通常表示用サムネ。
 // - 'full' : タップ等の拡大表示用オリジナル。
@@ -180,31 +173,19 @@ export type ImageVariant = 'thumb' | 'full';
 
 // 画像 1 件の公開表現（メタ）。バイナリは含まない（配信は GET /api/images/:id）。
 // width/height/bytes は「配信用オリジナル（orig）」の確定値（真実の源は D1）。
+// 検閲は行わず、アップロード直後から全員へ公開する（状態・検閲メタは持たない）。
 export interface ImageDto {
   id: string;
   ownerId: string;
   usage: ImageUsage;
-  status: ImageStatus;
   mime: string; // サーバー再圧縮後の確定 MIME（image/webp）
   width: number; // orig の幅（px）
   height: number; // orig の高さ（px）
   bytes: number; // orig のサイズ（byte）
   createdAt: number; // epoch ms
-  reviewedAt: number | null; // 検閲時刻。未検閲は null
-  reviewedBy: string | null; // 検閲した管理者の user.id。未検閲は null
 }
 
-// POST /api/images の応答。id・status・width/height 等を ImageDto で返す。
+// POST /api/images の応答。id・width/height 等を ImageDto で返す。
 export interface UploadImageResponse {
-  image: ImageDto;
-}
-
-// GET /admin/api/images の応答（検閲キュー／一覧）。古い順（検閲待ちを先に）。
-export interface ListImagesResponse {
-  images: ImageDto[];
-}
-
-// GET /admin/api/images/:id の応答（検閲パネル用の 1 件メタ取得）。
-export interface GetImageResponse {
   image: ImageDto;
 }

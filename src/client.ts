@@ -17,10 +17,8 @@
 import type {
   GetRoomResponse,
   ImageDto,
-  ImageStatus,
   ImageUsage,
   ImageVariant,
-  ListImagesResponse,
   ListRoomsResponse,
   MeDto,
   MeResponse,
@@ -61,16 +59,8 @@ export interface ApiClient {
   //（いずれも Blob 実装で、FormData の 'file' パートへそのまま載る。type から content-type が決まる）。
   uploadImage(file: Blob, usage: ImageUsage, roomId?: string): Promise<ImageDto>;
   // 画像バイナリの配信 URL を組み立てる（<Image source={{uri}}> 等に渡す）。variant は省略不可。
-  // 実体の出し分け（本人/他人・status）はサーバーが決めるため、URL は id と variant だけで足りる。
+  // 画像は検閲せず全員へ公開するため、URL は id と variant だけで足りる。
   imageUrl(id: string, variant: ImageVariant): string;
-
-  // --- 管理者専用（admin-ui の画像管理画面からのみ） ---
-  // 画像一覧（検閲キュー）。status 指定で絞る（省略時は全件）。古い順で返る。
-  listImages(status?: ImageStatus): Promise<ImageDto[]>;
-  // 承認。全員へ通常サムネ/原寸を公開する。
-  approveImage(id: string): Promise<void>;
-  // 却下。アプリ配信を停止する（実体は残す）。
-  rejectImage(id: string): Promise<void>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -146,19 +136,6 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
     },
     imageUrl(id, variant) {
       return `${baseUrl}/api/images/${id}?variant=${variant}`;
-    },
-
-    async listImages(status) {
-      const path = status ? `/admin/api/images?status=${status}` : '/admin/api/images';
-      const res = await request(path);
-      const data = (await res.json()) as Partial<ListImagesResponse>;
-      return data.images ?? [];
-    },
-    async approveImage(id) {
-      await request(`/admin/api/images/${id}/approve`, { method: 'POST' });
-    },
-    async rejectImage(id) {
-      await request(`/admin/api/images/${id}/reject`, { method: 'POST' });
     },
   };
 }
