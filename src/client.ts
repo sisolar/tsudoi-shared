@@ -24,7 +24,7 @@ import type {
   MeResponse,
   RoomDto,
   SendMessageRequest,
-  UpdateUserRequest,
+  UpdateMeRequest,
   UploadImageResponse,
 } from '@shared/api';
 
@@ -39,8 +39,9 @@ export interface ApiClientOptions {
 export interface ApiClient {
   // 自分の情報を取得する（設定画面の初期値など）。失敗時は例外を投げる。
   fetchMe(): Promise<MeDto>;
-  // 自分のプロフィール（表示名・メール）を更新する。成功時サーバーは 204。
-  updateMe(req: UpdateUserRequest): Promise<void>;
+  // 自分のプロフィール（表示名・メール・アバター解除）を更新する。成功時サーバーは 204。
+  // avatarImageId に null を渡すとアバターの設定を外す（省略時はアバターを変更しない）。
+  updateMe(req: UpdateMeRequest): Promise<void>;
   // 有効な部屋を新しい順に取得する。
   fetchRooms(): Promise<RoomDto[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。

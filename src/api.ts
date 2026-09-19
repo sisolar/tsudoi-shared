@@ -45,7 +45,8 @@ export interface GetUserResponse {
   user: UserDto;
 }
 
-// ユーザー情報の更新リクエスト。本人（PATCH /api/me）と管理者（PATCH /admin/api/users/:id）で共有する。
+// ユーザー情報の更新リクエスト。管理者（PATCH /admin/api/users/:id）と、本人（PATCH /api/me）の
+// 共通部分（name/email）を表す。本人経路はアバター操作を足した UpdateMeRequest を使う（下記）。
 // - name: 表示名。検証は normalizeName が唯一の検証点（型不正だけ invalid_name=400。空・長すぎは正常系）。
 // - email: メールアドレス。検証は normalizeEmail が唯一の検証点（形式不正は invalid_email=400、
 //   他ユーザーと衝突は already_exists=409、現在値と同じなら no-op）。本人・管理者いずれの経路でも変更可。
@@ -57,6 +58,17 @@ export interface GetUserResponse {
 export interface UpdateUserRequest {
   name: string;
   email: string;
+}
+
+// 本人専用の更新リクエスト（PATCH /api/me）。name/email は UpdateUserRequest と同じ扱い。
+// - avatarImageId: アバターの操作。本人だけが持つ概念のため管理者共有の UpdateUserRequest には載せない。
+//   - キー自体を省略（undefined）… アバターは変更しない（表示名・メールだけの更新）。
+//   - null を明示 … アバターの設定を外す（user.avatarImageId を NULL に戻す。実ファイルは消さない）。
+//   ※新規アバターの「設定」はこの経路ではなく POST /api/images(usage='avatar') で行う（ここは解除専用）。
+export interface UpdateMeRequest {
+  name: string;
+  email: string;
+  avatarImageId?: null;
 }
 
 // --- 本人（ログインユーザー自身） ---
