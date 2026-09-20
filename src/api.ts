@@ -207,3 +207,43 @@ export interface ImageDto {
 export interface UploadImageResponse {
   image: ImageDto;
 }
+
+// --- プッシュ通知（端末登録・管理者からの送信。docs/push-notification-poc-decisions.md） ---
+
+// 端末（Expo Push Token）のプラットフォーム。記録用（配信の出し分けには使わない）。
+export type PushPlatform = 'ios' | 'android';
+
+// POST /api/devices のリクエストボディ（本人の端末を通知有効化＝登録する）。
+// token はアプリが取得した Expo Push Token（ExponentPushToken[...]）。
+// userId はサーバーがセッションから解決するためクライアントは送らない。
+// 通知の「無効化」はこの経路ではなく DELETE /api/devices（token 指定）で行う（物理削除）。
+export interface RegisterDeviceRequest {
+  token: string;
+  platform: PushPlatform;
+}
+
+// DELETE /api/devices のリクエストボディ（本人の端末を通知無効化＝物理削除する）。
+// 自分が所有する token だけ消せる（userId はセッションで確定し、一致しない token は消さない）。
+export interface UnregisterDeviceRequest {
+  token: string;
+}
+
+// GET /api/devices/status?token=... の応答。設定画面が現在の端末の状態を初期表示するのに使う。
+// enabled は「この token が push_token 台帳に存在するか（＝通知有効か）」。存在＝有効の一元表現。
+export interface DeviceStatusResponse {
+  enabled: boolean;
+}
+
+// POST /admin/api/users/:id/push のリクエストボディ（管理者が指定ユーザーの全端末へ送る）。
+// title / body は通知の見出し・本文。PoC では管理者が任意の文言で送信できる。
+export interface AdminPushRequest {
+  title: string;
+  body: string;
+}
+
+// POST /admin/api/users/:id/push の応答。
+// sent は Expo へ送信を試みた端末数、removed は DeviceNotRegistered で掃除した端末数。
+export interface AdminPushResponse {
+  sent: number;
+  removed: number;
+}

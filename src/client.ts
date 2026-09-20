@@ -15,6 +15,7 @@
 // fetch / Response はどのランタイム（RN・ブラウザ・Workers・Node18+）にもグローバルで存在する。
 // 型解決のためだけに shared の tsconfig の lib に "dom" を含めている（実行時依存は無い）。
 import type {
+  DeviceStatusResponse,
   GetRoomResponse,
   ImageDto,
   ImageUsage,
@@ -22,8 +23,11 @@ import type {
   ListRoomsResponse,
   MeDto,
   MeResponse,
+  PushPlatform,
+  RegisterDeviceRequest,
   RoomDto,
   SendMessageRequest,
+  UnregisterDeviceRequest,
   UpdateMeRequest,
   UploadImageResponse,
 } from '@shared/api';
@@ -62,6 +66,14 @@ export interface ApiClient {
   // 画像バイナリの配信 URL を組み立てる（<Image source={{uri}}> 等に渡す）。variant は省略不可。
   // 画像は検閲せず全員へ公開するため、URL は id と variant だけで足りる。
   imageUrl(id: string, variant: ImageVariant): string;
+
+  // --- プッシュ通知の端末登録（本人向け。docs/push-notification-poc-decisions.md） ---
+  // この端末（Expo Push Token）の通知を有効化する（登録する）。既存 token の再登録は upsert。
+  registerDevice(token: string, platform: PushPlatform): Promise<void>;
+  // この端末の通知を無効化する（その token を物理削除する）。存在しなくても成功扱い。
+  unregisterDevice(token: string): Promise<void>;
+  // この端末の現在の通知状態（有効か）を取得する。設定画面のトグル初期値に使う。
+  getDeviceStatus(token: string): Promise<boolean>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -137,6 +149,28 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
     },
     imageUrl(id, variant) {
       return `${baseUrl}/api/images/${id}?variant=${variant}`;
+    },
+
+    async registerDevice(token, platform) {
+      const req: RegisterDeviceRequest = { token, platform };
+      await request('/api/devices', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async unregisterDevice(token) {
+      const req: UnregisterDeviceRequest = { token };
+      await request('/api/devices', {
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async getDeviceStatus(token) {
+      const res = await request(`/api/devices/status?token=${encodeURIComponent(token)}`);
+      const data = (await res.json()) as Partial<DeviceStatusResponse>;
+      return data.enabled ?? false;
     },
   };
 }
