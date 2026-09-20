@@ -97,9 +97,34 @@ export interface RoomDto {
   createdAt: number; // epoch ms
 }
 
-// GET /admin/api/rooms の応答。
+// GET /admin/api/rooms の応答。管理画面の一覧は台帳の素の表現（RoomDto）だけでよい。
 export interface ListRoomsResponse {
   rooms: RoomDto[];
+}
+
+// 部屋の「最新メッセージのサマリ」。待機画面（部屋一覧）のプレビュー行に使う。
+// 真実の源は各 Room DO の履歴だが、一覧で部屋数ぶん DO を叩かずに済むよう、
+// メッセージ保存時に D1 の room 台帳へ非正規化キャッシュした写しを返す。
+// - body       : 最新メッセージ本文（text はそのまま、image は本文を持たないので表示側で振り分ける）。
+// - sentAt     : 送信時刻（epoch ms）。相対表記（"5分前" 等）はクライアント側で算出する
+//                （タイムゾーン・現在時刻に依存するためサーバーで固定しない）。
+// - authorName : 送信者の表示名（authorId から user.name を解決した値。未設定は「名無し」）。
+export interface RoomLastMessage {
+  body: MessageBody;
+  sentAt: number;
+  authorName: string;
+}
+
+// 待機画面（部屋一覧）1 行分。台帳の RoomDto に最新メッセージのプレビューを足した表現。
+// lastMessage が null の部屋はまだ 1 件も投稿が無い（待機画面は「まだメッセージがありません」を出す）。
+export interface RoomListItem extends RoomDto {
+  lastMessage: RoomLastMessage | null;
+}
+
+// GET /api/rooms（アプリの待機画面向け）の応答。管理向け ListRoomsResponse とは別に、
+// 各部屋の最新メッセージ（lastMessage）を載せた行を返す。
+export interface ListRoomsForAppResponse {
+  rooms: RoomListItem[];
 }
 
 // GET /api/rooms/:id の応答（アプリのチャット画面が部屋名を引くのに使う）。

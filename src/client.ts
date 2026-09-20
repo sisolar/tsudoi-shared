@@ -20,12 +20,13 @@ import type {
   ImageDto,
   ImageUsage,
   ImageVariant,
-  ListRoomsResponse,
+  ListRoomsForAppResponse,
   MeDto,
   MeResponse,
   PushPlatform,
   RegisterDeviceRequest,
   RoomDto,
+  RoomListItem,
   SendMessageRequest,
   UnregisterDeviceRequest,
   UpdateMeRequest,
@@ -46,8 +47,8 @@ export interface ApiClient {
   // 自分のプロフィール（表示名・メール・アバター解除）を更新する。成功時サーバーは 204。
   // avatarImageId に null を渡すとアバターの設定を外す（省略時はアバターを変更しない）。
   updateMe(req: UpdateMeRequest): Promise<void>;
-  // 有効な部屋を新しい順に取得する。
-  fetchRooms(): Promise<RoomDto[]>;
+  // 有効な部屋を新しい順に取得する（待機画面用に各部屋の最新メッセージ lastMessage 付き）。
+  fetchRooms(): Promise<RoomListItem[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
   // テキストメッセージを送信する（送信は HTTP に一本化。WebSocket は受信=配信専用）。
@@ -108,7 +109,7 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
     },
     async fetchRooms() {
       const res = await request('/api/rooms');
-      const data = (await res.json()) as Partial<ListRoomsResponse>;
+      const data = (await res.json()) as Partial<ListRoomsForAppResponse>;
       return data.rooms ?? [];
     },
     async fetchRoom(id) {
