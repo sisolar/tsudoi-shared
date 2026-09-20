@@ -27,9 +27,11 @@ import type {
   RegisterDeviceRequest,
   RoomDto,
   RoomListItem,
+  CreateRoomRequest,
   SendMessageRequest,
   UnregisterDeviceRequest,
   UpdateMeRequest,
+  UpdateRoomRequest,
   UploadImageResponse,
 } from '@shared/api';
 
@@ -51,6 +53,12 @@ export interface ApiClient {
   fetchRooms(): Promise<RoomListItem[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
+  // 部屋を新規作成する（表示名 name を渡す。id・createdAt はサーバーが採番）。成功時サーバーは 204。
+  // 応答ボディは持たないため、呼び出し側は fetchRooms() の再取得で新しい部屋を反映する。
+  createRoom(name: string): Promise<void>;
+  // 部屋名（表示名）を変更する。成功時サーバーは 204。
+  // 呼び出し側は fetchRoom(id) / fetchRooms() の再取得で確定値（正規化後）を反映する。
+  updateRoom(id: string, name: string): Promise<void>;
   // テキストメッセージを送信する（送信は HTTP に一本化。WebSocket は受信=配信専用）。
   // 成功時サーバーは 204。自分の吹き出しはサーバーからの WS 配信で表示される。
   sendTextMessage(roomId: string, text: string): Promise<void>;
@@ -117,6 +125,22 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const data = (await res.json()) as Partial<GetRoomResponse>;
       if (!data.room) throw new Error('room not found');
       return data.room;
+    },
+    async createRoom(name) {
+      const req: CreateRoomRequest = { name };
+      await request('/api/rooms', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async updateRoom(id, name) {
+      const req: UpdateRoomRequest = { name };
+      await request(`/api/rooms/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
     },
     async sendTextMessage(roomId, text) {
       const req: SendMessageRequest = { body: { type: 'text', text } };

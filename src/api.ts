@@ -132,14 +132,21 @@ export interface GetRoomResponse {
   room: RoomDto;
 }
 
-// POST /admin/api/rooms のリクエストボディ。
+// POST /api/rooms のリクエストボディ（部屋の新規作成）。
+// name は部屋の表示名。検証は normalizeName が唯一の検証点（型不正は invalid_name=400、
+// 空は不可＝400、長すぎは切り捨て）。id・createdAt はサーバーが採番する。
+// 成功時サーバーは 204（ボディなし）。呼び出し側は GET /api/rooms の再取得で新しい部屋を反映する
+//（updateMe と同じく「確定値は再取得で反映」に作法をそろえ、応答型の二重持ちを避ける）。
 export interface CreateRoomRequest {
   name: string;
 }
 
-// POST /admin/api/rooms の応答。
-export interface CreateRoomResponse {
-  room: RoomDto;
+// PATCH /api/rooms/:id のリクエストボディ（部屋名の変更）。
+// name は新しい表示名。検証は CreateRoomRequest と同じく normalizeName が唯一の検証点
+// （型不正は invalid_name=400、空は不可＝400、長すぎは切り捨て）。
+// 成功時サーバーは 204。呼び出し側は GET /api/rooms(/:id) の再取得で確定値を反映する。
+export interface UpdateRoomRequest {
+  name: string;
 }
 
 // --- 部屋のメッセージ（Room DO に蓄積されたチャット履歴） ---
