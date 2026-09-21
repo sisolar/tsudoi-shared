@@ -15,7 +15,6 @@ export interface ChatMessage {
   avatarImageId: string | null;
   body: MessageBody;
   sentAt: number; // epoch ms
-  read?: boolean; // outgoing only
 }
 
 // body から表示用テキストを取り出す。text 以外（image 等）は空文字（描画側で別表示に切り替える）。
