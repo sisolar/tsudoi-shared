@@ -21,6 +21,17 @@ export interface ChatMessage {
 // body から表示用テキストを取り出す。text 以外（image 等）は空文字（描画側で別表示に切り替える）。
 export const bodyText = (b: MessageBody): string => (b.type === 'text' ? b.text : '');
 
+// 待機画面（部屋一覧）1 行の未読件数を計算する（docs/read-receipt-decisions.md）。
+// 未読件数はサーバーで計算せずクライアントが出す方針のため、ここに純粋関数として集約する
+//（roomPreviewText と同粒度。表示ロジックを 3 プロジェクトで共有する）。
+// - 部屋の最新 seq は RoomLastMessage.seq。未投稿部屋は lastMessage:null なので未読 0。
+// - lastReadSeq は自分の既読 seq（GET /api/rooms/reads で取得。カーソル未取得の部屋は 0＝全件未読）。
+// max(0, ...) で負にならないようにする（既読 seq が最新 seq を上回る一時的なズレでもバッジは 0）。
+export function unreadCount(item: RoomListItem, lastReadSeq: number): number {
+  const lastSeq = item.lastMessage?.seq ?? 0;
+  return Math.max(0, lastSeq - lastReadSeq);
+}
+
 // 待機画面（部屋一覧）の最新メッセージ本文プレビュー文字列を作る。
 // text はそのまま、image は本文を持たないため「写真を送信しました」に振り分ける。
 // lastMessage が無い（まだ 1 件も投稿が無い）部屋は「まだメッセージがありません」を返す。
