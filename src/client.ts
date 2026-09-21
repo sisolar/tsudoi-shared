@@ -21,14 +21,19 @@ import type {
   ImageUsage,
   ImageVariant,
   ListRoomsForAppResponse,
+  MarkReadRequest,
   MeDto,
   MeResponse,
   MutedRoomsResponse,
+  MyReadsResponse,
   PushPlatform,
+  ReadCursor,
+  ReadReceipt,
   RegisterDeviceRequest,
   RoomDto,
   RoomListItem,
   RoomNotificationResponse,
+  RoomReadsResponse,
   CreateRoomRequest,
   SendMessageRequest,
   UnregisterDeviceRequest,
@@ -94,6 +99,17 @@ export interface ApiClient {
   setRoomNotification(roomId: string, muted: boolean): Promise<void>;
   // 自分がミュートしている部屋 id の一覧を取得する。待機画面がベルアイコン表示に使う。
   fetchMutedRoomIds(): Promise<string[]>;
+
+  // --- 既読（本人向け。docs/read-receipt-decisions.md） ---
+  // 自分の全部屋の既読カーソルを取得する（fetchMutedRoomIds と対称）。待機画面が未読件数
+  // max(0, (lastMessage?.seq ?? 0) - lastReadSeq) を算出するのに使う。カーソルの無い部屋は含まれない。
+  fetchMyReads(): Promise<ReadCursor[]>;
+  // この部屋を seq まで読んだと記録する（read_cursor を max(既存, seq) で upsert）。成功時 204。
+  // 表示済みの最大 seq を渡す。userId はサーバーがセッションから解決する。
+  markRead(roomId: string, seq: number): Promise<void>;
+  // その部屋の全員分の既読カーソルを取得する（チャット画面マウント時の初期同期）。
+  // 以後は WS の read イベントで差分更新する。自分自身も含まれ得る（描画側で除外する）。
+  fetchRoomReads(roomId: string): Promise<ReadReceipt[]>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -227,6 +243,25 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request('/api/rooms/mutes');
       const data = (await res.json()) as Partial<MutedRoomsResponse>;
       return data.roomIds ?? [];
+    },
+
+    async fetchMyReads() {
+      const res = await request('/api/rooms/reads');
+      const data = (await res.json()) as Partial<MyReadsResponse>;
+      return data.cursors ?? [];
+    },
+    async markRead(roomId, seq) {
+      const req: MarkReadRequest = { seq };
+      await request(`/api/rooms/${roomId}/read`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async fetchRoomReads(roomId) {
+      const res = await request(`/api/rooms/${roomId}/reads`);
+      const data = (await res.json()) as Partial<RoomReadsResponse>;
+      return data.reads ?? [];
     },
   };
 }

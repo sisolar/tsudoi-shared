@@ -109,10 +109,15 @@ export interface ListRoomsResponse {
 // - sentAt     : 送信時刻（epoch ms）。相対表記（"5分前" 等）はクライアント側で算出する
 //                （タイムゾーン・現在時刻に依存するためサーバーで固定しない）。
 // - authorName : 送信者の表示名（authorId から user.name を解決した値。未設定は「名無し」）。
+// - seq        : 最新メッセージの seq（部屋内で単調増加。room 台帳の lastSeq キャッシュ由来）。
+//   未読件数はサーバーで計算せず、クライアントが自分の既読 seq（GET /api/rooms/reads）と
+//   max(0, seq - lastReadSeq) で算出する（docs/read-receipt-decisions.md）。未投稿部屋は
+//   lastMessage 自体が null になるため、その場合は既読/未読の計算対象にしない（未読 0）。
 export interface RoomLastMessage {
   body: MessageBody;
   sentAt: number;
   authorName: string;
+  seq: number;
 }
 
 // 待機画面（部屋一覧）1 行分。台帳の RoomDto に最新メッセージのプレビューを足した表現。
@@ -325,4 +330,44 @@ export interface UpdateRoomNotificationRequest {
 // オプトアウトなのでミュートした部屋だけが並ぶ（未ミュートは含まれない＝通知 ON）。
 export interface MutedRoomsResponse {
   roomIds: string[];
+}
+
+// --- 既読（未読バッジ＋相手の既読表示。docs/read-receipt-decisions.md） ---
+
+// PUT /api/rooms/:id/read のリクエストボディ（この部屋を seq まで読んだと記録する）。
+// seq はクライアントが表示済みの最大 seq。サーバーは read_cursor を lastReadSeq = max(既存, seq) で
+// upsert する（後戻りさせない）。userId はセッションで確定するため送らない。成功時サーバーは 204。
+export interface MarkReadRequest {
+  seq: number;
+}
+
+// 自分の 1 部屋ぶんの既読カーソル（GET /api/rooms/reads の要素）。
+// - roomId      : 部屋 id。
+// - lastReadSeq : その部屋で自分が読んだ最大 seq。
+// read_cursor が無い部屋は結果に含まれない（クライアントは未取得＝0＝全件未読として扱う）。
+export interface ReadCursor {
+  roomId: string;
+  lastReadSeq: number;
+}
+
+// GET /api/rooms/reads の応答（自分の全部屋の既読カーソル）。GET /api/rooms/mutes と対称。
+// 待機画面が未読件数を max(0, (lastMessage?.seq ?? 0) - lastReadSeq) で算出するために使う
+// （未読件数の計算はクライアント。サーバーは生のカーソルを返すだけ）。
+export interface MyReadsResponse {
+  cursors: ReadCursor[];
+}
+
+// 他者の既読カーソル 1 件（GET /api/rooms/:id/reads・WS の read イベントの要素）。
+// - userId : 読んだ人の id（自分自身も含まれ得る。描画側で自分は除外して扱う）。
+// - seq    : その人が読んだ最大 seq。
+// チャット画面は「seq >= そのメッセージの seq」の他者数で各メッセージの「既読／既読 N」を計算する。
+export interface ReadReceipt {
+  userId: string;
+  seq: number;
+}
+
+// GET /api/rooms/:id/reads の応答（その部屋の全員分の既読カーソル）。
+// チャット画面マウント時の初期同期に使い、以後は WS の read イベントで差分更新する。
+export interface RoomReadsResponse {
+  reads: ReadReceipt[];
 }
