@@ -12,7 +12,7 @@ import {
   MAX_INPUT_PIXELS,
   MAX_UPLOAD_BYTES,
 } from './image-constraints';
-import type { ImageUsage, ImageVariant } from './api';
+import type { ImageUsage, ImageVariant, MessageBody } from './api';
 
 // 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
 export const NAME_MAX_LENGTH = 40;
@@ -76,4 +76,28 @@ export function isImageUsage(input: unknown): input is ImageUsage {
 // 省略不可・未知不可（呼び出し側は invalid_variant=400）。
 export function isImageVariant(input: unknown): input is ImageVariant {
   return input === 'thumb' || input === 'full';
+}
+
+// --- メッセージ本文の検証（保存・配信の唯一の検証点） ---
+// メッセージ送信は HTTP に一本化したため、入口は POST /api/rooms/:id/messages（text）と
+// POST /api/images（image）の 2 つ。どちらも { body } を渡し、検証点をこの関数 1 つに集約する。
+// Room DO 側の内部保存（防御的な二重検証）も同じ関数を通す。
+//
+// 受信入力（{ body: MessageBody }）から保存用の body を検証・整形する。壊れ・未対応は null。
+// text は前後空白を落とし、空なら null。image は imageId が非空文字列でなければ null
+// （寸法の真実の源は D1 image 表。存在確認・検閲状態は配信側が担う）。未知 type は拒否する。
+export function normalizeMessageBody(data: { body?: unknown }): MessageBody | null {
+  const raw = data.body;
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  if (b.type === 'text') {
+    const text = typeof b.text === 'string' ? b.text.trim() : '';
+    return text ? { type: 'text', text } : null;
+  }
+  if (b.type === 'image') {
+    const imageId = typeof b.imageId === 'string' ? b.imageId.trim() : '';
+    return imageId ? { type: 'image', imageId } : null;
+  }
+  // text / image 以外の type は受け付けない（未知 type は型・実装ともに拒否する）。
+  return null;
 }
