@@ -280,6 +280,31 @@ export interface AdminPushResponse {
   removed: number;
 }
 
+// プッシュ通知に載せる data ペイロード（Expo Push の data フィールド）。
+// 必ず type 付きで送り、受信側（アプリ）は type で振り分ける（未知 type は無視＝前方互換）。
+// 通知の種類を増やすときは、新しい *PushData を足して PushData の union に加えるだけでよい
+// （HubEvent の envelope 設計と同じ拡張思想）。
+export type PushData = ChatPushData | SnsPushData;
+
+// 新着チャットメッセージ通知の data。通知タップ時にどのチャット部屋へ遷移すべきかを表す。
+// 本文（メッセージ内容）はロック画面の覗き見防止のため通知には載せないが、遷移先の解決に要る
+// roomId と、見出しに使う roomName（＝部屋名）だけは data として渡す。
+//  - roomId: タップ時に遷移する部屋（/room/[id]）。
+//  - roomName: 部屋名（通知の見出しにも使う。アプリ側の表示補助）。
+export interface ChatPushData {
+  type: 'chat_message';
+  roomId: string;
+  roomName: string;
+}
+
+// SNS 系通知の data。通知タップ時に該当ユーザーの SNS プロフィール（/user/[id]）へ遷移する。
+// 現状は最小限（遷移先ユーザーのみ）。将来この分岐に必要な項目を足していく。
+//  - userId: タップ時に遷移する相手（/user/[id]）。
+export interface SnsPushData {
+  type: 'sns';
+  userId: string;
+}
+
 // --- 部屋ごと・ユーザー個別の通知ミュート（docs/room-mute-notification-decisions.md） ---
 
 // GET /api/rooms/:id/notification の応答。チャット画面ヘッダーのベル表示の初期値に使う。
