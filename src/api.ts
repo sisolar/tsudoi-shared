@@ -294,3 +294,10 @@ export interface RoomNotificationResponse {
 export interface UpdateRoomNotificationRequest {
   muted: boolean;
 }
+
+// GET /api/rooms/mutes の応答（自分がミュートしている部屋 id の一覧）。
+// 待機画面（部屋一覧）が、通知オフの部屋にベルアイコンを出すために使う。
+// オプトアウトなのでミュートした部屋だけが並ぶ（未ミュートは含まれない＝通知 ON）。
+export interface MutedRoomsResponse {
+  roomIds: string[];
+}

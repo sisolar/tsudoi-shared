@@ -23,6 +23,7 @@ import type {
   ListRoomsForAppResponse,
   MeDto,
   MeResponse,
+  MutedRoomsResponse,
   PushPlatform,
   RegisterDeviceRequest,
   RoomDto,
@@ -91,6 +92,8 @@ export interface ApiClient {
   getRoomNotification(roomId: string): Promise<boolean>;
   // この部屋の通知 ON/OFF を切り替える。muted=true でミュート、false で解除。成功時サーバーは 204。
   setRoomNotification(roomId: string, muted: boolean): Promise<void>;
+  // 自分がミュートしている部屋 id の一覧を取得する。待機画面がベルアイコン表示に使う。
+  fetchMutedRoomIds(): Promise<string[]>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -219,6 +222,11 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
+    },
+    async fetchMutedRoomIds() {
+      const res = await request('/api/rooms/mutes');
+      const data = (await res.json()) as Partial<MutedRoomsResponse>;
+      return data.roomIds ?? [];
     },
   };
 }
