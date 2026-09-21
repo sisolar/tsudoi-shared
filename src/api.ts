@@ -108,7 +108,8 @@ export interface ListRoomsResponse {
 // - body       : 最新メッセージ本文（text はそのまま、image は本文を持たないので表示側で振り分ける）。
 // - sentAt     : 送信時刻（epoch ms）。相対表記（"5分前" 等）はクライアント側で算出する
 //                （タイムゾーン・現在時刻に依存するためサーバーで固定しない）。
-// - authorName : 送信者の表示名（authorId から user.name を解決した値。未設定は「名無し」）。
+// - authorName : 送信者の表示名（authorId から user.name を解決した生の値。未設定は空文字。
+//                空表示名の「名無し」への読み替えはクライアント側の表示境界で行う）。
 // - seq        : 最新メッセージの seq（部屋内で単調増加。room 台帳の lastSeq キャッシュ由来）。
 //   未読件数はサーバーで計算せず、クライアントが自分の既読 seq（GET /api/rooms/reads）と
 //   max(0, seq - lastReadSeq) で算出する（docs/read-receipt-decisions.md）。未投稿部屋は
@@ -180,7 +181,8 @@ export interface SendMessageRequest {
 // サーバー(DO)が配信・履歴で吐く「メッセージ1件の公開表現（DTO）」。seq は DO が採番する連番。
 // 同じ API（DO の /history・WS 配信）を、サーバー・管理画面・アプリが同じ形で受け取るための
 // 唯一の契約。各プロジェクトでワイヤー型を再定義しない（食い違いを構造的に防ぐ）。
-// authorName は authorId から D1 の user.name を解決した値（未設定は「名無し」）。
+// authorName は authorId から D1 の user.name を解決した生の値（未設定は空文字。
+//   空表示名の「名無し」への読み替えはクライアント側の表示境界で行う）。
 // avatarImageId は authorId から D1 の user.avatarImageId を解決した値（未設定は null）。
 //   authorName と同じく保持せず配信・履歴の直前に解決するため、改名・アイコン差し替えが即反映される
 //   （バイナリ・状態は持たずキーだけ）。
