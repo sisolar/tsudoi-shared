@@ -2,7 +2,7 @@
 // サーバー(src/*)・アプリ(tsudoi-app/src/*) が import して共有する（docs/userhub-do-plan.md）。
 //
 // UserHub は「1 ユーザー = 1 DO（idFromName(userId)）」で、アプリはログイン中ずっと
-// 自分の UserHub へ wss://…/hub を 1 本だけ張る。部屋一覧の更新・SNS 通知・運営お知らせ等の
+// 自分の UserHub へ wss://…/do/hub を 1 本だけ張る。部屋一覧の更新・SNS 通知・運営お知らせ等の
 // ユーザー宛リアルタイムを、この 1 本の汎用チャンネルで受ける（用途が増えても WS の本数は増やさない）。
 //
 // 汎用チャンネルなので配信は必ず type 付きの「封筒（envelope）」で包む。受信側は type で振り分け、
