@@ -27,10 +27,12 @@ import type {
   RegisterDeviceRequest,
   RoomDto,
   RoomListItem,
+  RoomNotificationResponse,
   CreateRoomRequest,
   SendMessageRequest,
   UnregisterDeviceRequest,
   UpdateMeRequest,
+  UpdateRoomNotificationRequest,
   UpdateRoomRequest,
   UploadImageResponse,
 } from '@shared/api';
@@ -83,6 +85,12 @@ export interface ApiClient {
   unregisterDevice(token: string): Promise<void>;
   // この端末の現在の通知状態（有効か）を取得する。設定画面のトグル初期値に使う。
   getDeviceStatus(token: string): Promise<boolean>;
+
+  // --- 部屋ごと・ユーザー個別の通知ミュート（本人向け。docs/room-mute-notification-decisions.md） ---
+  // この部屋を自分がミュートしているか（＝通知 OFF か）を取得する。ヘッダーのベル表示の初期値に使う。
+  getRoomNotification(roomId: string): Promise<boolean>;
+  // この部屋の通知 ON/OFF を切り替える。muted=true でミュート、false で解除。成功時サーバーは 204。
+  setRoomNotification(roomId: string, muted: boolean): Promise<void>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -196,6 +204,21 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request(`/api/devices/status?token=${encodeURIComponent(token)}`);
       const data = (await res.json()) as Partial<DeviceStatusResponse>;
       return data.enabled ?? false;
+    },
+
+    async getRoomNotification(roomId) {
+      const res = await request(`/api/rooms/${roomId}/notification`);
+      const data = (await res.json()) as Partial<RoomNotificationResponse>;
+      // 応答が欠けても安全側（通知 ON = ミュートなし）に倒す。
+      return data.muted ?? false;
+    },
+    async setRoomNotification(roomId, muted) {
+      const req: UpdateRoomNotificationRequest = { muted };
+      await request(`/api/rooms/${roomId}/notification`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
     },
   };
 }

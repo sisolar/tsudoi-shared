@@ -279,3 +279,18 @@ export interface AdminPushResponse {
   sent: number;
   removed: number;
 }
+
+// --- 部屋ごと・ユーザー個別の通知ミュート（docs/room-mute-notification-decisions.md） ---
+
+// GET /api/rooms/:id/notification の応答。チャット画面ヘッダーのベル表示の初期値に使う。
+// muted は「この部屋を自分がミュートしているか（＝通知 OFF か）」。既定は false（通知 ON）。
+// 判定は userId 単位（サーバーがセッションから解決する。端末ではなくユーザーの意思）。
+export interface RoomNotificationResponse {
+  muted: boolean;
+}
+
+// PUT /api/rooms/:id/notification のリクエストボディ（この部屋の通知 ON/OFF を切り替える）。
+// muted=true でミュート（通知 OFF）、false で解除（通知 ON）。userId はセッションで確定するため送らない。
+export interface UpdateRoomNotificationRequest {
+  muted: boolean;
+}
