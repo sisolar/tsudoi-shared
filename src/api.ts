@@ -108,16 +108,15 @@ export interface ListRoomsResponse {
 // - body       : 最新メッセージ本文（text はそのまま、image は本文を持たないので表示側で振り分ける）。
 // - sentAt     : 送信時刻（epoch ms）。相対表記（"5分前" 等）はクライアント側で算出する
 //                （タイムゾーン・現在時刻に依存するためサーバーで固定しない）。
-// - authorName : 送信者の表示名（authorId から user.name を解決した生の値。未設定は空文字。
-//                空表示名の「名無し」への読み替えはクライアント側の表示境界で行う）。
 // - seq        : 最新メッセージの seq（部屋内で単調増加。room 台帳の lastSeq キャッシュ由来）。
 //   未読件数はサーバーで計算せず、クライアントが自分の既読 seq（GET /api/rooms/reads）と
 //   max(0, seq - lastReadSeq) で算出する（docs/read-receipt-decisions.md）。未投稿部屋は
 //   lastMessage 自体が null になるため、その場合は既読/未読の計算対象にしない（未読 0）。
+// NOTE: 送信者の表示名（authorName）は待機画面のプレビュー（roomPreviewText）が使わないため持たない
+//   （プレビューは本文だけを出す。表示名が要るのはチャット画面で、そちらは ChatMessageDto 側で都度解決する）。
 export interface RoomLastMessage {
   body: MessageBody;
   sentAt: number;
-  authorName: string;
   seq: number;
 }
 
