@@ -16,6 +16,10 @@ export interface ChatMessage {
   avatarImageId: string | null;
   body: MessageBody;
   sentAt: number; // epoch ms
+  // 本文トークン <@userId> の表示名解決情報（ChatMessageDto.mentions をそのまま引き継ぐ）。
+  // body が text かつメンションを持つ時だけ載る。描画側は splitMentionSegments に渡して
+  // <@userId> を @名前 のハイライト表示へ置換する（authorName と同じく都度解決＝改名即反映）。
+  mentions?: MentionRef[];
 }
 
 // body から表示用テキストを取り出す。text 以外（image 等）は空文字（描画側で別表示に切り替える）。
