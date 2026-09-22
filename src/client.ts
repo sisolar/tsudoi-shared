@@ -23,8 +23,10 @@ import type {
   ListRoomsForAppResponse,
   MarkReadRequest,
   MeDto,
+  MentionCandidate,
   MeResponse,
   MutedRoomsResponse,
+  RoomMembersResponse,
   MyReadsResponse,
   PushPlatform,
   ReadCursor,
@@ -61,6 +63,9 @@ export interface ApiClient {
   fetchRooms(): Promise<RoomListItem[]>;
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
+  // メンション候補ユーザーの一覧を取得する（コンポーザの「メンション追加」シート用。
+  // docs/mention-decisions.md）。現状は全登録ユーザー（自分含む。呼び出し側で自分を除外して表示する）。
+  fetchRoomMembers(roomId: string): Promise<MentionCandidate[]>;
   // 部屋を新規作成する（表示名 name を渡す。id・createdAt はサーバーが採番）。成功時サーバーは 204。
   // 応答ボディは持たないため、呼び出し側は fetchRooms() の再取得で新しい部屋を反映する。
   createRoom(name: string): Promise<void>;
@@ -152,6 +157,11 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const data = (await res.json()) as Partial<GetRoomResponse>;
       if (!data.room) throw new Error('room not found');
       return data.room;
+    },
+    async fetchRoomMembers(roomId) {
+      const res = await request(`/api/rooms/${roomId}/members`);
+      const data = (await res.json()) as Partial<RoomMembersResponse>;
+      return data.members ?? [];
     },
     async createRoom(name) {
       const req: CreateRoomRequest = { name };

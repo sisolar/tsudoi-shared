@@ -78,26 +78,51 @@ export function isImageVariant(input: unknown): input is ImageVariant {
   return input === 'thumb' || input === 'full';
 }
 
+// --- メンション（docs/mention-decisions.md） ---
+// 本文テキストに埋め込むメンションのトークン書式は <@userId>。userId は Better Auth 採番
+// （英数・ハイフン・アンダースコア想定）。表示テキストに現れにくく素のテキストと衝突しにくい書式。
+export const MENTION_TOKEN_RE = /<@([A-Za-z0-9_-]+)>/g;
+
+// 本文テキストから <@userId> トークンの userId を抽出する（重複排除・出現順）。
+// 純粋関数（D1 非依存）。実在ユーザーかの確認はしない（宛先の実在確認は呼び出し側＝サーバーの責務）。
+export function extractMentions(text: string): string[] {
+  const ids = new Set<string>();
+  for (const m of text.matchAll(MENTION_TOKEN_RE)) ids.add(m[1]);
+  return [...ids];
+}
+
 // --- メッセージ本文の検証（保存・配信の唯一の検証点） ---
 // メッセージ送信は HTTP に一本化したため、入口は POST /api/rooms/:id/messages（text）と
 // POST /api/images（image）の 2 つ。どちらも { body } を渡し、検証点をこの関数 1 つに集約する。
 // Room DO 側の内部保存（防御的な二重検証）も同じ関数を通す。
 //
+// type ごとの整形は専用ヘルパー（normalizeTextBody / normalizeImageBody）へ分離し、
+// この関数は「入力を検証済み union へ振り分ける」ディスパッチに徹する（分岐の見通しを保つ）。
+
+// text 本文を整形する。前後空白を落とし、空なら null（送信不可）。
+// メンションは本文の <@userId> トークンから「サーバーが」再生成する（クライアント申告 b.mentions は
+// 信用しない＝authorId 同様、真実はサーバーが確定）。mentions が空なら省略して載せない（後方互換）。
+function normalizeTextBody(b: Record<string, unknown>): MessageBody | null {
+  const text = typeof b.text === 'string' ? b.text.trim() : '';
+  if (!text) return null;
+  const mentions = extractMentions(text);
+  return mentions.length ? { type: 'text', text, mentions } : { type: 'text', text };
+}
+
+// image 本文を整形する。imageId が非空文字列でなければ null
+// （寸法の真実の源は D1 image 表。存在確認・検閲状態は配信側が担う）。
+function normalizeImageBody(b: Record<string, unknown>): MessageBody | null {
+  const imageId = typeof b.imageId === 'string' ? b.imageId.trim() : '';
+  return imageId ? { type: 'image', imageId } : null;
+}
+
 // 受信入力（{ body: MessageBody }）から保存用の body を検証・整形する。壊れ・未対応は null。
-// text は前後空白を落とし、空なら null。image は imageId が非空文字列でなければ null
-// （寸法の真実の源は D1 image 表。存在確認・検閲状態は配信側が担う）。未知 type は拒否する。
+// text / image 以外の type は受け付けない（未知 type は型・実装ともに拒否する）。
 export function normalizeMessageBody(data: { body?: unknown }): MessageBody | null {
   const raw = data.body;
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
-  if (b.type === 'text') {
-    const text = typeof b.text === 'string' ? b.text.trim() : '';
-    return text ? { type: 'text', text } : null;
-  }
-  if (b.type === 'image') {
-    const imageId = typeof b.imageId === 'string' ? b.imageId.trim() : '';
-    return imageId ? { type: 'image', imageId } : null;
-  }
-  // text / image 以外の type は受け付けない（未知 type は型・実装ともに拒否する）。
+  if (b.type === 'text') return normalizeTextBody(b);
+  if (b.type === 'image') return normalizeImageBody(b);
   return null;
 }

@@ -137,6 +137,25 @@ export interface GetRoomResponse {
   room: RoomDto;
 }
 
+// メンション候補 1 件（GET /api/rooms/:id/members の要素。docs/mention-decisions.md）。
+// コンポーザの「メンション追加」シートに並べるユーザー。表示は name || '名無し'（表示境界で読み替え）。
+// - id            : メンション対象の userId（本文トークン <@id> に使う）。
+// - name          : 表示名（未設定は空文字）。
+// - avatarImageId : アイコン画像 id（未設定は null）。候補シートの各行の丸アバター表示に使い、
+//                   既存のユーザー表示（チャットの発言者・SNS プロフィール）と見た目を揃える。
+//                   未設定は頭文字円プレースホルダ（AVATAR_TINT）にフォールバックする。
+export interface MentionCandidate {
+  id: string;
+  name: string;
+  avatarImageId: string | null;
+}
+
+// GET /api/rooms/:id/members の応答。メンション候補ユーザーの一覧。
+// 現状は全登録ユーザーを返す（room_members 台帳が未導入のため）。将来は参加者だけに絞る（API 形は不変）。
+export interface RoomMembersResponse {
+  members: MentionCandidate[];
+}
+
 // POST /api/rooms のリクエストボディ（部屋の新規作成）。
 // name は部屋の表示名。検証は normalizeName が唯一の検証点（型不正は invalid_name=400、
 // 空は不可＝400、長すぎは切り捨て）。id・createdAt はサーバーが採番する。
@@ -163,8 +182,13 @@ export interface UpdateRoomRequest {
 // - image: 本文には画像 id だけを載せる（寸法の真実の源は D1 image 表 = ImageDto）。
 //   二重持ちを避けるため width/height は本文に持たせない（docs 5.2）。
 // 将来 type を増やすときはこの union を明示的に広げる（素通し用のワイルドカードは持たない）。
+// text の mentions は「本文に埋め込まれた <@userId> トークンの userId 配列」（重複排除・順不同）。
+// メンション機能（docs/mention-decisions.md）。表示名は本文に焼き付けず、配信・履歴の直前に userId から
+// 都度解決する（authorName と同じ思想。改名がメンション表示にも即反映される）。mentions は任意プロパティ
+// （既存の保存済みメッセージ＝mentions 無しと前方・後方互換）。この値はサーバー（normalizeMessageBody）が
+// text から再生成して確定する（クライアント申告は信用しない＝authorId と同じ「真実はサーバーが作る」）。
 export type MessageBody =
-  | { type: 'text'; text: string }
+  | { type: 'text'; text: string; mentions?: string[] }
   | { type: 'image'; imageId: string };
 
 // POST /api/rooms/:id/messages のリクエストボディ（アプリのテキスト送信）。
@@ -186,6 +210,15 @@ export interface SendMessageRequest {
 //   authorName と同じく保持せず配信・履歴の直前に解決するため、改名・アイコン差し替えが即反映される
 //   （バイナリ・状態は持たずキーだけ）。
 // sentAt は epoch ms。
+// メンション先 1 件の解決済み表示情報（ChatMessageDto.mentions の要素。docs/mention-decisions.md）。
+// - userId : メンションされた人の id（本文トークン <@userId> と対応）。
+// - name   : 配信・履歴の直前に user.name を解決した生の値（未設定は空文字。表示境界で「名無し」）。
+// authorName と同じく保持せず都度解決するため、メンションされた相手が改名すると過去分含め即反映される。
+export interface MentionRef {
+  userId: string;
+  name: string;
+}
+
 export interface ChatMessageDto {
   seq: number;
   authorId: string;
@@ -193,6 +226,9 @@ export interface ChatMessageDto {
   avatarImageId: string | null;
   body: MessageBody;
   sentAt: number;
+  // body が text かつ mentions を持つ時だけ載る（それ以外は省略）。本文トークン <@userId> の
+  // 表示名解決に使う。クライアントはこれで <@userId> を @name のハイライト表示へ置換する。
+  mentions?: MentionRef[];
 }
 
 // GET /admin/api/rooms/:id/messages のクエリ。DO の履歴カーソルをそのまま公開する。
