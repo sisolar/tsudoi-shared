@@ -115,3 +115,71 @@ export function relativeTime(sentAt: number, now: number = Date.now()): string {
   const d = new Date(sentAt);
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
+
+// --- チャット画面の行ビューモデル・入力補助（アプリ/管理画面で共有する純ロジック。docs/reply-decisions.md 7） ---
+
+// 行の描画に必要な値だけを事前計算した「ビューモデル」。
+// これを作っておくことで、行コンポーネントは messages 配列や index を参照せずに済み、
+// 各行の再描画を props の浅い比較（memo）だけで抑えられる。
+export interface RowVM {
+  message: ChatMessage;
+  mine: boolean;
+  showDay: boolean;
+  dayText: string;
+  grouped: boolean;
+}
+
+// 送信時刻を「今日 / 昨日 / M月D日(曜)」の日付区切りラベルへ変換する（buildRowVMs 内部でも使う）。
+// 相対表記はデバイスの現在時刻・タイムゾーン依存のため表示側で算出する。now は既定で現在時刻。
+export function dayLabel(ms: number, now: number = Date.now()): string {
+  const day = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+  const diff = day(now) - day(ms);
+  if (diff === 0) return '今日';
+  if (diff === 86_400_000) return '昨日';
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]})`;
+}
+
+// 送信時刻を時計表記（H:MM）へ。吹き出し脇の時刻に使う。
+export function clock(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getHours()}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+// messages（seq 昇順）から行 VM 配列を作る。1回の走査で prev 参照を解決する。
+// 日付区切り・連続グルーピングは「時系列で1つ前のメッセージ」（index-1）を基準にする。
+export function buildRowVMs(messages: ChatMessage[], meId: string | undefined): RowVM[] {
+  const out: RowVM[] = new Array(messages.length);
+  for (let i = 0; i < messages.length; i += 1) {
+    const item = messages[i];
+    const prev = messages[i - 1];
+    const day = dayLabel(item.sentAt);
+    const showDay = !prev || dayLabel(prev.sentAt) !== day;
+    out[i] = {
+      message: item,
+      mine: item.authorId === meId,
+      showDay,
+      dayText: day,
+      grouped: !!prev && prev.authorId === item.authorId && !showDay,
+    };
+  }
+  return out;
+}
+
+// 送信直前に、入力欄の読みやすい「@名前」を機械可読なトークン「<@userId>」へ変換する
+//（docs/mention-decisions.md の割り切り。ワイヤー・保存は <@userId>、表示は都度解決）。
+// map は「@名前 → userId」の対応表（コンポーザが選択時に貯める）。長い名前から先に置換し、
+// 短い名前が長い名前の一部を食い違って潰さないようにする（例: @はる と @はると の共存）。
+// ユーザーが @名前 部分を手で編集・削除して一致しなくなったものは置換されない＝メンション扱いに
+// ならない（トークン化しない）。正規表現の特殊文字は名前に混ざり得るのでエスケープしてから探す。
+export function tokenizeMentions(text: string, map: Map<string, string>): string {
+  const labels = [...map.keys()].sort((a, b) => b.length - a.length);
+  let out = text;
+  for (const label of labels) {
+    const userId = map.get(label);
+    if (!userId) continue;
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(escaped, 'g'), `<@${userId}>`);
+  }
+  return out;
+}
