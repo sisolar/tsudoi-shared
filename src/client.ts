@@ -15,6 +15,7 @@
 // fetch / Response はどのランタイム（RN・ブラウザ・Workers・Node18+）にもグローバルで存在する。
 // 型解決のためだけに shared の tsconfig の lib に "dom" を含めている（実行時依存は無い）。
 import type {
+  ChatMessageDto,
   DeviceStatusResponse,
   GetRoomResponse,
   ImageDto,
@@ -25,6 +26,8 @@ import type {
   MeDto,
   MentionCandidate,
   MeResponse,
+  MessageResponse,
+  ThreadResponse,
   MutedRoomsResponse,
   RoomMembersResponse,
   MyReadsResponse,
@@ -74,7 +77,15 @@ export interface ApiClient {
   updateRoom(id: string, name: string): Promise<void>;
   // テキストメッセージを送信する（送信は HTTP に一本化。WebSocket は受信=配信専用）。
   // 成功時サーバーは 204。自分の吹き出しはサーバーからの WS 配信で表示される。
-  sendTextMessage(roomId: string, text: string): Promise<void>;
+  // replyTo を渡すと「その seq への返信」として送る（docs/reply-decisions.md）。実在確認は
+  // サーバー（DO）が行い、存在しない seq は落とす。省略時は通常メッセージ。
+  sendTextMessage(roomId: string, text: string, replyTo?: number): Promise<void>;
+  // 単一メッセージ（seq 指定）を取得する（返信の引用チップが引用元 1 件を引くのに使う。
+  // docs/reply-decisions.md 3.1）。存在しない seq は 404 → 例外。
+  fetchRoomMessage(roomId: string, seq: number): Promise<ChatMessageDto>;
+  // スレッド全件を取得する（スレッド画面。docs/reply-decisions.md 6 章）。渡した seq から
+  // サーバーが起点（ルート）seq を探し、起点に紐づく全メッセージを seq 昇順で返す。
+  fetchRoomThread(roomId: string, seq: number): Promise<ThreadResponse>;
 
   // --- 画像アップロード基盤（アプリ・admin-ui 共通） ---
   // 画像をアップロードする唯一の入口。multipart/form-data（file + usage）で送る。
@@ -179,13 +190,29 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
         body: JSON.stringify(req),
       });
     },
-    async sendTextMessage(roomId, text) {
-      const req: SendMessageRequest = { body: { type: 'text', text } };
+    async sendTextMessage(roomId, text, replyTo) {
+      // replyTo は返信のときだけ載せる（省略時は通常メッセージ。サーバーが実在確認する）。
+      const req: SendMessageRequest = replyTo
+        ? { body: { type: 'text', text }, replyTo }
+        : { body: { type: 'text', text } };
       await request(`/api/rooms/${roomId}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
+    },
+    async fetchRoomMessage(roomId, seq) {
+      const res = await request(`/api/rooms/${roomId}/messages/${seq}`);
+      const data = (await res.json()) as Partial<MessageResponse>;
+      if (!data.message) throw new Error('message not found');
+      return data.message;
+    },
+    async fetchRoomThread(roomId, seq) {
+      const res = await request(`/api/rooms/${roomId}/thread?seq=${seq}`);
+      const data = (await res.json()) as Partial<ThreadResponse>;
+      // rootSeq が無い応答は不正（サーバーは必ず起点 seq を返す）。messages は空もあり得る。
+      if (typeof data.rootSeq !== 'number') throw new Error('thread not found');
+      return { rootSeq: data.rootSeq, messages: data.messages ?? [] };
     },
 
     async uploadImage(file, usage, roomId) {

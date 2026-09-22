@@ -91,6 +91,17 @@ export function extractMentions(text: string): string[] {
   return [...ids];
 }
 
+// --- 返信（リプライ。docs/reply-decisions.md） ---
+// 返信先メッセージの seq を正規化する。送信ルート（POST /api/rooms/:id/messages）が通す唯一の検証点。
+// seq は DO が採番する正の整数（1 始まりの連番）。正の整数だけ受け入れ、それ以外（非数・0・負・小数・
+// NaN 等）は undefined を返す（＝返信ではない扱い）。
+// 実在確認（その seq が本当にその部屋にあるか）はここではしない（validation.ts はランタイム非依存の
+// 純粋関数という制約を守る。DO の SQLite を参照できない）。実在確認は DO 側が行い、存在しない seq は
+// 落とす（authorId 同様「真実はサーバーが確定」）。
+export function normalizeReplyTo(input: unknown): number | undefined {
+  return typeof input === 'number' && Number.isInteger(input) && input > 0 ? input : undefined;
+}
+
 // --- メッセージ本文の検証（保存・配信の唯一の検証点） ---
 // メッセージ送信は HTTP に一本化したため、入口は POST /api/rooms/:id/messages（text）と
 // POST /api/images（image）の 2 つ。どちらも { body } を渡し、検証点をこの関数 1 つに集約する。

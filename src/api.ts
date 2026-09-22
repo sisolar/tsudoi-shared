@@ -199,6 +199,12 @@ export type MessageBody =
 // 送信の可否（WebSocket 接続中のみ送れる等）はクライアントの UX 判断であり、サーバーは関与しない。
 export interface SendMessageRequest {
   body: MessageBody;
+  // 返信（リプライ）先メッセージの seq（同一部屋内で一意な DO 採番の連番。docs/reply-decisions.md）。
+  // 通常メッセージでは省略。返信は本文（body）ではなくメッセージのメタ属性なので body の外に持つ
+  //（メンションが本文トークン由来だったのと対照的。返信は「メッセージ同士のリンク」）。
+  // 検証は normalizeReplyTo（正の整数のみ）。実在確認は DO 側（存在しない seq は落とす）。
+  // authorId 同様「真実はサーバーが確定」する。
+  replyTo?: number;
 }
 
 // サーバー(DO)が配信・履歴で吐く「メッセージ1件の公開表現（DTO）」。seq は DO が採番する連番。
@@ -229,6 +235,10 @@ export interface ChatMessageDto {
   // body が text かつ mentions を持つ時だけ載る（それ以外は省略）。本文トークン <@userId> の
   // 表示名解決に使う。クライアントはこれで <@userId> を @name のハイライト表示へ置換する。
   mentions?: MentionRef[];
+  // 返信（リプライ）先メッセージの seq（docs/reply-decisions.md）。通常メッセージでは省略。
+  // 引用元の本文・送信者名はここに載せない（クライアントが手元のメッセージから seq で解決して
+  // 引用チップを描く。authorName と同じく「焼き付けない」思想）。DO は保存済みの seq をそのまま公開する。
+  replyTo?: number;
 }
 
 // GET /admin/api/rooms/:id/messages のクエリ。DO の履歴カーソルをそのまま公開する。
@@ -247,6 +257,22 @@ export interface ListRoomMessagesQuery {
 export interface ListRoomMessagesResponse {
   messages: ChatMessageDto[];
   hasMore: boolean;
+}
+
+// GET /api/rooms/:id/thread?seq=<seq> の応答（スレッド画面。docs/reply-decisions.md 6 章）。
+// クライアントは「開く起点メッセージの seq」だけを渡す。サーバー（DO）がその seq の replyTo チェーンを
+// 辿って起点（ルート）seq を求め、起点に紐づく全メッセージ（起点自身＋辿ると起点に至る全返信）を
+// seq 昇順で返す。手元の取得済み分に依存せず取りこぼさない。messages は ChatMessageDto（引用チップの
+// 解決に使う replyTo 付き）。rootSeq は求まった起点 seq（クライアントの表示・再取得に使う）。
+export interface ThreadResponse {
+  rootSeq: number;
+  messages: ChatMessageDto[];
+}
+
+// GET /api/rooms/:id/messages/:seq の応答（返信の引用チップが引用元 1 件を引く。docs/reply-decisions.md 3.1）。
+// 指定 seq のメッセージ 1 件を ChatMessageDto（表示名・メンション解決済み）で返す。存在しない seq は 404。
+export interface MessageResponse {
+  message: ChatMessageDto;
 }
 
 // --- 画像アップロード基盤（avatar / chat 共通。docs/image-upload-decisions.md） ---
@@ -337,6 +363,10 @@ export interface ChatPushData {
   type: 'chat_message';
   roomId: string;
   roomName: string;
+  // 返信通知のときだけ載る（docs/reply-decisions.md 4.1）。返信メッセージ自身の seq。
+  // タップ時にこの seq を起点にスレッド画面（/room/:roomId/thread/:threadSeq）へ直接遷移する
+  //（無ければ従来どおり部屋 /room/:roomId へ遷移）。通常・メンション通知では省略。
+  threadSeq?: number;
 }
 
 // SNS 系通知の data。通知タップ時に該当ユーザーの SNS プロフィール（/user/[id]）へ遷移する。

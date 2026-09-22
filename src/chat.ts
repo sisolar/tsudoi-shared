@@ -20,6 +20,22 @@ export interface ChatMessage {
   // body が text かつメンションを持つ時だけ載る。描画側は splitMentionSegments に渡して
   // <@userId> を @名前 のハイライト表示へ置換する（authorName と同じく都度解決＝改名即反映）。
   mentions?: MentionRef[];
+  // 返信（リプライ。docs/reply-decisions.md）先メッセージの seq。通常メッセージでは省略。
+  // ChatMessageDto.replyTo をそのまま引き継ぐ。描画側（MessageRow）はこの seq を単一メッセージ取得
+  // API（GET /api/rooms/:id/messages/:seq。reply-cache でキャッシュ）で引いて「引用チップ
+  // （→ ◯◯さんへ: 本文プレビュー）」を吹き出しの上に描く（引用元は焼き付けず都度解決）。
+  replyTo?: number;
+}
+
+// 返信の引用チップに出す本文プレビュー文字列を作る（docs/reply-decisions.md 3 章）。
+// 引用元メッセージ（seq から取得した ChatMessage）を渡すと 1 行のプレビューを返す。
+// text はメンション解決込みのサマリ（bodyText。長い本文は呼び出し側の Text で省略記号にする）、
+// image は本文を持たないため「写真」に振り分ける。null（引用元が取得できない）なら空文字を返し、
+// 呼び出し側は簡易表示（「返信」等）にフォールバックする。
+export function replyPreviewText(msg: ChatMessage | null | undefined): string {
+  if (!msg) return '';
+  if (msg.body.type === 'image') return '写真';
+  return bodyText(msg.body, msg.mentions);
 }
 
 // body から表示用テキストを取り出す。text 以外（image 等）は空文字（描画側で別表示に切り替える）。
