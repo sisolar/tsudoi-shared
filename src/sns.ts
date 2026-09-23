@@ -16,9 +16,20 @@ export interface SnsPost {
   replies: number;
 }
 
+// アルバム写真 1 枚。プロフィールの「アルバム」タブにグリッド表示する。
+// - imageId は画像配信の id（未設定なら null）。null のときは表示側で tint 地のプレースホルダ矩形を出す
+//   （実画像が載る前でもグリッドが埋まる。将来 API で実 imageId を返せば同じ描画に差し替わる）。
+// - caption は任意の一言（アクセシビリティ・将来の詳細表示用。表示は省略してよい）。
+export interface SnsPhoto {
+  id: string;
+  imageId: string | null;
+  caption?: string;
+}
+
 // SNS プロフィール 1 人分。
 // - stats は「つぶやき / ご縁 / おとずれ」の 3 指標。
 // - posts は DESC（降順・先頭が最新）で持つ。リストは上が最新・下が古い並びでそのまま描く。
+// - photos は「アルバム」タブ用の写真（DESC・先頭が最新）。グリッドでそのまま描く。
 // - avatarImageId は user.avatarImageId（未設定なら null）。画像配信は id で参照する。
 export interface SnsProfile {
   userId: string;
@@ -31,6 +42,7 @@ export interface SnsProfile {
   tags: string[]; // 興味・関心のタグ
   stats: SnsStats;
   posts: SnsPost[];
+  photos: SnsPhoto[];
 }
 
 // プロフィールの 3 指標。posts=つぶやき / ties=ご縁 / visits=おとずれ。
