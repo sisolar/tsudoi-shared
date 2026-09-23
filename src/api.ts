@@ -90,11 +90,18 @@ export interface MeResponse {
 
 // --- 部屋（Room DO） ---
 
+// 部屋の公開範囲（docs/room-visibility-decisions.md）。真実の源は D1 room.visibility。
+// - public  … 従来どおりログイン済みなら誰でも見える・入れる。
+// - private … 選ばれたメンバー（room_member）だけが見える・入れる。
+export type RoomVisibility = 'public' | 'private';
+
 // 部屋1件の公開表現。一覧・作成の応答で使う。deletedAt など内部列は出さない。
 export interface RoomDto {
   id: string;
   name: string;
   createdAt: number; // epoch ms
+  // 公開範囲。編集画面が現在の状態（公開／限定公開トグル）を初期化するのに使う。
+  visibility: RoomVisibility;
 }
 
 // GET /admin/api/rooms の応答。管理画面の一覧は台帳の素の表現（RoomDto）だけでよい。
@@ -151,9 +158,17 @@ export interface MentionCandidate {
 }
 
 // GET /api/rooms/:id/members の応答。メンション候補ユーザーの一覧。
-// 現状は全登録ユーザーを返す（room_members 台帳が未導入のため）。将来は参加者だけに絞る（API 形は不変）。
+// public 部屋は全登録ユーザー、private 部屋はその部屋の参加者（room_member JOIN user）を返す
+// （docs/room-visibility-decisions.md 3.1。呼び出し側・UI は無変更でメンバー絞り込みへ移行）。
 export interface RoomMembersResponse {
   members: MentionCandidate[];
+}
+
+// GET /api/users の応答（部屋非依存の全登録ユーザー一覧＝メンバー選択画面の候補）。
+// UserPickerSheet が候補注入型になり fetch を持たなくなったため、メンバー選択用途の候補取得口として新設した
+// （docs/room-visibility-decisions.md 5.1）。要素はメンション候補と同じ MentionCandidate（表示形を共有する）。
+export interface AllUsersResponse {
+  users: MentionCandidate[];
 }
 
 // POST /api/rooms のリクエストボディ（部屋の新規作成）。
@@ -163,14 +178,25 @@ export interface RoomMembersResponse {
 //（updateMe と同じく「確定値は再取得で反映」に作法をそろえ、応答型の二重持ちを避ける）。
 export interface CreateRoomRequest {
   name: string;
+  // 公開範囲。検証は normalizeVisibility が唯一の検証点（型不正は invalid_visibility=400）。
+  visibility: RoomVisibility;
+  // private のとき選択メンバー（置き換え集合）。public では無視する。作成者はサーバーが必ず含める。
+  // 実在確認はサーバーが filterExistingUserIds で行い、存在しない id は落とす。
+  memberIds?: string[];
 }
 
-// PATCH /api/rooms/:id のリクエストボディ（部屋名の変更）。
+// PATCH /api/rooms/:id のリクエストボディ（部屋名・公開範囲・メンバーの変更）。
 // name は新しい表示名。検証は CreateRoomRequest と同じく normalizeName が唯一の検証点
 // （型不正は invalid_name=400、空は不可＝400、長すぎは切り捨て）。
+// visibility の切り替え・メンバーの入れ替えを一括で受ける。
 // 成功時サーバーは 204。呼び出し側は GET /api/rooms(/:id) の再取得で確定値を反映する。
 export interface UpdateRoomRequest {
   name: string;
+  // 公開範囲。検証は normalizeVisibility が唯一の検証点（型不正は invalid_visibility=400）。
+  visibility: RoomVisibility;
+  // private のとき置き換え集合（差分ではなく完全置き換え）。public では無視する。
+  // public へ戻すときはサーバーが room_member を全消しする。作成者は必ず含める（サーバーが強制）。
+  memberIds?: string[];
 }
 
 // --- 部屋のメッセージ（Room DO に蓄積されたチャット履歴） ---

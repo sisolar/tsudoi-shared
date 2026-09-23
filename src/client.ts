@@ -15,6 +15,7 @@
 // fetch / Response はどのランタイム（RN・ブラウザ・Workers・Node18+）にもグローバルで存在する。
 // 型解決のためだけに shared の tsconfig の lib に "dom" を含めている（実行時依存は無い）。
 import type {
+  AllUsersResponse,
   ChatMessageDto,
   DeviceStatusResponse,
   GetRoomResponse,
@@ -39,6 +40,7 @@ import type {
   RoomListItem,
   RoomNotificationResponse,
   RoomReadsResponse,
+  RoomVisibility,
   CreateRoomRequest,
   SendMessageRequest,
   UnregisterDeviceRequest,
@@ -67,14 +69,24 @@ export interface ApiClient {
   // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<RoomDto>;
   // メンション候補ユーザーの一覧を取得する（コンポーザの「メンション追加」シート用。
-  // docs/mention-decisions.md）。現状は全登録ユーザー（自分含む。呼び出し側で自分を除外して表示する）。
+  // docs/mention-decisions.md）。public 部屋は全登録ユーザー、private 部屋はその部屋の参加者だけを返す
+  // （サーバーが visibility で絞る。呼び出し側で自分を除外して表示する）。
   fetchRoomMembers(roomId: string): Promise<MentionCandidate[]>;
-  // 部屋を新規作成する（表示名 name を渡す。id・createdAt はサーバーが採番）。成功時サーバーは 204。
-  // 応答ボディは持たないため、呼び出し側は fetchRooms() の再取得で新しい部屋を反映する。
-  createRoom(name: string): Promise<void>;
-  // 部屋名（表示名）を変更する。成功時サーバーは 204。
+  // 全登録ユーザーの一覧を取得する（メンバー選択画面の候補＝部屋非依存。docs/room-visibility-decisions.md 5.1）。
+  // UserPickerSheet の候補として親（RoomSettings）が渡す。メンション用途は fetchRoomMembers を使い分ける。
+  fetchAllUsers(): Promise<MentionCandidate[]>;
+  // 部屋を新規作成する（表示名 name・公開範囲 visibility を渡す。id・createdAt はサーバーが採番）。
+  // private のとき memberIds（選択メンバー）を渡す（作成者はサーバーが必ず含める。public では無視）。
+  // 成功時サーバーは 204。応答ボディは持たないため、呼び出し側は fetchRooms() の再取得で反映する。
+  createRoom(name: string, visibility: RoomVisibility, memberIds?: string[]): Promise<void>;
+  // 部屋名（表示名）・公開範囲・メンバーを変更する。private のとき memberIds は置き換え集合。成功時サーバーは 204。
   // 呼び出し側は fetchRoom(id) / fetchRooms() の再取得で確定値（正規化後）を反映する。
-  updateRoom(id: string, name: string): Promise<void>;
+  updateRoom(
+    id: string,
+    name: string,
+    visibility: RoomVisibility,
+    memberIds?: string[],
+  ): Promise<void>;
   // テキストメッセージを送信する（送信は HTTP に一本化。WebSocket は受信=配信専用）。
   // 成功時サーバーは 204。自分の吹き出しはサーバーからの WS 配信で表示される。
   // replyTo を渡すと「その seq への返信」として送る（docs/reply-decisions.md）。実在確認は
@@ -174,16 +186,24 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const data = (await res.json()) as Partial<RoomMembersResponse>;
       return data.members ?? [];
     },
-    async createRoom(name) {
-      const req: CreateRoomRequest = { name };
+    async fetchAllUsers() {
+      const res = await request('/api/users');
+      const data = (await res.json()) as Partial<AllUsersResponse>;
+      return data.users ?? [];
+    },
+    async createRoom(name, visibility, memberIds) {
+      // memberIds は private のときだけ載せる（public では無視されるため送らない）。
+      const req: CreateRoomRequest =
+        visibility === 'private' ? { name, visibility, memberIds: memberIds ?? [] } : { name, visibility };
       await request('/api/rooms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
     },
-    async updateRoom(id, name) {
-      const req: UpdateRoomRequest = { name };
+    async updateRoom(id, name, visibility, memberIds) {
+      const req: UpdateRoomRequest =
+        visibility === 'private' ? { name, visibility, memberIds: memberIds ?? [] } : { name, visibility };
       await request(`/api/rooms/${id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },

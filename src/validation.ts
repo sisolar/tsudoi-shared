@@ -12,7 +12,7 @@ import {
   MAX_INPUT_PIXELS,
   MAX_UPLOAD_BYTES,
 } from './image-constraints';
-import type { ImageUsage, ImageVariant, MessageBody } from './api';
+import type { ImageUsage, ImageVariant, MessageBody, RoomVisibility } from './api';
 
 // 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
 export const NAME_MAX_LENGTH = 40;
@@ -40,6 +40,15 @@ export function normalizeEmail(input: unknown): string | null {
   const normalized = input.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) return null;
   return normalized;
+}
+
+// --- 部屋の公開範囲（docs/room-visibility-decisions.md 2.2） ---
+// 公開範囲を正規化する。作成 POST /api/rooms・編集 PATCH /api/rooms/:id が通す唯一の検証点。
+// 'public' | 'private' の 2 値だけ受け入れ、それ以外（未知・型不正）は null を返す
+// （呼び出し側は invalid_visibility=400）。memberIds の実在確認は D1 参照が要るのでここではやらず、
+// サーバー（rooms-routes.ts）が filterExistingUserIds を通して存在しない id を落とす。
+export function normalizeVisibility(v: unknown): RoomVisibility | null {
+  return v === 'public' || v === 'private' ? v : null;
 }
 
 // --- 画像アップロードの検証（サーバーに一元化する唯一の検証点） ---
