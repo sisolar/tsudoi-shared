@@ -127,16 +127,21 @@ export interface RoomLastMessage {
   seq: number;
 }
 
-// 待機画面（部屋一覧）1 行分。台帳の RoomDto に最新メッセージのプレビューを足した表現。
+// 待機画面（部屋一覧）1 行分の「部屋のサマリ」。台帳の RoomDto に最新メッセージのプレビューと
+// メンバー数を足した要約表現（一覧行に必要な派生値をまとめて載せる）。
 // lastMessage が null の部屋はまだ 1 件も投稿が無い（待機画面は「まだメッセージがありません」を出す）。
-export interface RoomListItem extends RoomDto {
+// memberCount は限定公開（private）部屋のメンバー数（room_member の行数）。lastMessage と同じく
+// 別テーブル集計の派生値なので RoomDto には混ぜず、このサマリ表現に持たせる。
+// public 部屋は「全員」でありメンバーという概念で数える意味がないため null（一覧の行に人数を出さない）。
+export interface RoomSummary extends RoomDto {
   lastMessage: RoomLastMessage | null;
+  memberCount: number | null;
 }
 
 // GET /api/rooms（アプリの待機画面向け）の応答。管理向け ListRoomsResponse とは別に、
 // 各部屋の最新メッセージ（lastMessage）を載せた行を返す。
 export interface ListRoomsForAppResponse {
-  rooms: RoomListItem[];
+  rooms: RoomSummary[];
 }
 
 // GET /api/rooms/:id の応答（アプリのチャット画面が部屋名を引くのに使う）。

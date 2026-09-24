@@ -1,7 +1,7 @@
 // チャットの画面表示用の型・ヘルパー。本文の型は api.ts の MessageBody を唯一の出所にする。
 // サーバー(src/*)・管理画面(admin-ui/src/*)・アプリ(tsudoi-app/src/*) が import して共有する。
 // ここには特定ランタイム（Cloudflare Workers / DOM / React Native）依存の型を書かない（純粋な型・関数のみ）。
-import type { MentionRef, MessageBody, RoomListItem } from './api';
+import type { MentionRef, MessageBody, RoomSummary } from './api';
 import { MENTION_TOKEN_RE } from './validation';
 
 // クライアントの一覧描画で使うメッセージ1件の表現。
@@ -85,7 +85,7 @@ export function splitMentionSegments(text: string, refs?: MentionRef[]): Mention
 // - 部屋の最新 seq は RoomLastMessage.seq。未投稿部屋は lastMessage:null なので未読 0。
 // - lastReadSeq は自分の既読 seq（GET /api/rooms/reads で取得。カーソル未取得の部屋は 0＝全件未読）。
 // max(0, ...) で負にならないようにする（既読 seq が最新 seq を上回る一時的なズレでもバッジは 0）。
-export function unreadCount(item: RoomListItem, lastReadSeq: number): number {
+export function unreadCount(item: RoomSummary, lastReadSeq: number): number {
   const lastSeq = item.lastMessage?.seq ?? 0;
   return Math.max(0, lastSeq - lastReadSeq);
 }
@@ -93,7 +93,7 @@ export function unreadCount(item: RoomListItem, lastReadSeq: number): number {
 // 待機画面（部屋一覧）の最新メッセージ本文プレビュー文字列を作る。
 // text はそのまま、image は本文を持たないため「写真を送信しました」に振り分ける。
 // lastMessage が無い（まだ 1 件も投稿が無い）部屋は「まだメッセージがありません」を返す。
-export function roomPreviewText(item: RoomListItem): string {
+export function roomPreviewText(item: RoomSummary): string {
   const last = item.lastMessage;
   if (!last) return 'まだメッセージがありません';
   if (last.body.type === 'image') return '写真を送信しました';

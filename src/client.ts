@@ -36,7 +36,7 @@ import type {
   ReadCursor,
   ReadReceipt,
   RegisterDeviceRequest,
-  RoomListItem,
+  RoomSummary,
   RoomNotificationResponse,
   RoomReadsResponse,
   RoomVisibility,
@@ -64,7 +64,7 @@ export interface ApiClient {
   // avatarImageId に null を渡すとアバターの設定を外す（省略時はアバターを変更しない）。
   updateMe(req: UpdateMeRequest): Promise<void>;
   // 有効な部屋を新しい順に取得する（待機画面用に各部屋の最新メッセージ lastMessage 付き）。
-  fetchRooms(): Promise<RoomListItem[]>;
+  fetchRooms(): Promise<RoomSummary[]>;
   // 単一の部屋情報を取得する（部屋の素データ room ＋ 限定公開部屋のメンバー数 memberCount）。
   // memberCount は public 部屋では null（数える意味がない）。存在しない id は 404 → 例外。
   fetchRoom(id: string): Promise<GetRoomResponse>;
