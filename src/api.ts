@@ -140,8 +140,13 @@ export interface ListRoomsForAppResponse {
 }
 
 // GET /api/rooms/:id の応答（アプリのチャット画面が部屋名を引くのに使う）。
+// memberCount は限定公開（private）部屋のメンバー数（room_member の行数）。room 台帳1行の
+// 素の写像である RoomDto には混ぜず（データ元が room_member 集計で別テーブルのため）、応答側に持たせる。
+// public 部屋は「全員」でありメンバーという概念で数える意味がないため null を返す
+//（チャット画面のヘッダーは private のときだけ「N人」を出す）。
 export interface GetRoomResponse {
   room: RoomDto;
+  memberCount: number | null;
 }
 
 // メンション候補 1 件（GET /api/rooms/:id/members の要素。docs/mention-decisions.md）。

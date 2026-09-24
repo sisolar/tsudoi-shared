@@ -36,7 +36,6 @@ import type {
   ReadCursor,
   ReadReceipt,
   RegisterDeviceRequest,
-  RoomDto,
   RoomListItem,
   RoomNotificationResponse,
   RoomReadsResponse,
@@ -66,8 +65,9 @@ export interface ApiClient {
   updateMe(req: UpdateMeRequest): Promise<void>;
   // 有効な部屋を新しい順に取得する（待機画面用に各部屋の最新メッセージ lastMessage 付き）。
   fetchRooms(): Promise<RoomListItem[]>;
-  // 単一の部屋情報を取得する。存在しない id は 404 → 例外。
-  fetchRoom(id: string): Promise<RoomDto>;
+  // 単一の部屋情報を取得する（部屋の素データ room ＋ 限定公開部屋のメンバー数 memberCount）。
+  // memberCount は public 部屋では null（数える意味がない）。存在しない id は 404 → 例外。
+  fetchRoom(id: string): Promise<GetRoomResponse>;
   // メンション候補ユーザーの一覧を取得する（コンポーザの「メンション追加」シート用。
   // docs/mention-decisions.md）。public 部屋は全登録ユーザー、private 部屋はその部屋の参加者だけを返す
   // （サーバーが visibility で絞る。呼び出し側で自分を除外して表示する）。
@@ -179,7 +179,7 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request(`/api/rooms/${id}`);
       const data = (await res.json()) as Partial<GetRoomResponse>;
       if (!data.room) throw new Error('room not found');
-      return data.room;
+      return { room: data.room, memberCount: data.memberCount ?? null };
     },
     async fetchRoomMembers(roomId) {
       const res = await request(`/api/rooms/${roomId}/members`);
