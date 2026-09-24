@@ -435,12 +435,16 @@ export interface MarkReadRequest {
 }
 
 // 自分の 1 部屋ぶんの既読カーソル（GET /api/rooms/reads の要素）。
-// - roomId      : 部屋 id。
-// - lastReadSeq : その部屋で自分が読んだ最大 seq。
-// read_cursor が無い部屋は結果に含まれない（クライアントは未取得＝0＝全件未読として扱う）。
+// - roomId        : 部屋 id。
+// - lastReadSeq   : その部屋で自分が読んだ最大 seq。
+// - mentionUnread : その部屋で自分宛て（返信/メンション）の未読件数（docs/read-receipt-decisions.md の
+//                   未読バッジ拡張）。待機画面はこの値が > 0 の部屋を「数字付きバッジ（数字＝この件数）」、
+//                   0 の部屋を「数字なしドット」で描き分ける。既読化（markRead）で 0 にリセットされる。
+// read_cursor が無い部屋は結果に含まれない（クライアントは未取得＝lastReadSeq 0・mentionUnread 0 扱い）。
 export interface ReadCursor {
   roomId: string;
   lastReadSeq: number;
+  mentionUnread: number;
 }
 
 // GET /api/rooms/reads の応答（自分の全部屋の既読カーソル）。GET /api/rooms/mutes と対称。
