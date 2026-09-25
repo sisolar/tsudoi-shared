@@ -33,12 +33,7 @@ export interface SnsPhoto {
 export interface SnsProfile {
   userId: string;
   name: string;
-  handle: string; // @なしのハンドル（表示側で @ を付ける）
   avatarImageId: string | null;
-  bio: string;
-  location: string;
-  joined: string; // 参加時期（例: '2022年 春 から'）
-  tags: string[]; // 興味・関心のタグ
   posts: SnsPost[];
   photos: SnsPhoto[];
 }
