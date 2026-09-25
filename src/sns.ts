@@ -27,7 +27,6 @@ export interface SnsPhoto {
 }
 
 // SNS プロフィール 1 人分。
-// - stats は「つぶやき / ご縁 / おとずれ」の 3 指標。
 // - posts は DESC（降順・先頭が最新）で持つ。リストは上が最新・下が古い並びでそのまま描く。
 // - photos は「アルバム」タブ用の写真（DESC・先頭が最新）。グリッドでそのまま描く。
 // - avatarImageId は user.avatarImageId（未設定なら null）。画像配信は id で参照する。
@@ -40,14 +39,6 @@ export interface SnsProfile {
   location: string;
   joined: string; // 参加時期（例: '2022年 春 から'）
   tags: string[]; // 興味・関心のタグ
-  stats: SnsStats;
   posts: SnsPost[];
   photos: SnsPhoto[];
-}
-
-// プロフィールの 3 指標。posts=つぶやき / ties=ご縁 / visits=おとずれ。
-export interface SnsStats {
-  posts: number;
-  ties: number;
-  visits: number;
 }
