@@ -18,6 +18,7 @@ import type {
   AllUsersResponse,
   ChatMessageDto,
   DeviceStatusResponse,
+  GetAppUserResponse,
   GetRoomResponse,
   ImageDto,
   ImageUsage,
@@ -75,6 +76,9 @@ export interface ApiClient {
   // 全登録ユーザーの一覧を取得する（メンバー選択画面の候補＝部屋非依存。docs/room-visibility-decisions.md 5.1）。
   // UserPickerSheet の候補として親（RoomSettings）が渡す。メンション用途は fetchRoomMembers を使い分ける。
   fetchAllUsers(): Promise<MentionCandidate[]>;
+  // 単一ユーザーを取得する（部屋非依存。SNS プロフィール画面が userId から名前・アイコンを実データで
+  // 解決するのに使う）。存在しない id は 404 → 例外。全登録一覧（fetchAllUsers）と同じ公開表現を返す。
+  fetchUser(id: string): Promise<MentionCandidate>;
   // 部屋を新規作成する（表示名 name・公開範囲 visibility を渡す。id・createdAt はサーバーが採番）。
   // private のとき memberIds（選択メンバー）を渡す（作成者はサーバーが必ず含める。public では無視）。
   // 成功時サーバーは 204。応答ボディは持たないため、呼び出し側は fetchRooms() の再取得で反映する。
@@ -190,6 +194,12 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request('/api/users');
       const data = (await res.json()) as Partial<AllUsersResponse>;
       return data.users ?? [];
+    },
+    async fetchUser(id) {
+      const res = await request(`/api/users/${id}`);
+      const data = (await res.json()) as Partial<GetAppUserResponse>;
+      if (!data.user) throw new Error('user not found');
+      return data.user;
     },
     async createRoom(name, visibility, memberIds) {
       // memberIds は private のときだけ載せる（public では無視されるため送らない）。

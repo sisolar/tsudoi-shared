@@ -181,6 +181,13 @@ export interface AllUsersResponse {
   users: MentionCandidate[];
 }
 
+// GET /api/users/:id の応答（部屋非依存の単一ユーザー取得）。SNS プロフィール画面が userId から
+// 名前・アイコン（表示に必要な最小限）を実データで解決するために使う。存在しない id は 404。
+// 一覧（AllUsersResponse）と同じ公開表現 MentionCandidate（id/name/avatarImageId）を返し、表示形を共有する。
+export interface GetAppUserResponse {
+  user: MentionCandidate;
+}
+
 // POST /api/rooms のリクエストボディ（部屋の新規作成）。
 // name は部屋の表示名。検証は normalizeName が唯一の検証点（型不正は invalid_name=400、
 // 空は不可＝400、長すぎは切り捨て）。id・createdAt はサーバーが採番する。
