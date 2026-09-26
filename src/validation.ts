@@ -13,6 +13,7 @@ import {
   MAX_UPLOAD_BYTES,
 } from './image-constraints';
 import type { ImageUsage, ImageVariant, MessageBody, RoomVisibility } from './api';
+import type { SnsPostBody } from './sns';
 
 // 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
 export const NAME_MAX_LENGTH = 40;
@@ -78,7 +79,7 @@ export function isAllowedImagePixels(width: unknown, height: unknown): boolean {
 // usage 文字列が既知の用途か（POST /api/images の usage 検証点）。
 // 未知はフォールバックせずここで弾く（呼び出し側は invalid_usage=400）。
 export function isImageUsage(input: unknown): input is ImageUsage {
-  return input === 'avatar' || input === 'chat';
+  return input === 'avatar' || input === 'chat' || input === 'sns';
 }
 
 // variant 文字列が既知か（GET /api/images/:id?variant= の検証点）。
@@ -145,4 +146,48 @@ export function normalizeMessageBody(data: { body?: unknown }): MessageBody | nu
   if (b.type === 'text') return normalizeTextBody(b);
   if (b.type === 'image') return normalizeImageBody(b);
   return null;
+}
+
+// --- SNS つぶやきの検証（docs/sns-post-decisions.md。保存の唯一の検証点） ---
+// つぶやきは「本文（構造化 JSON SnsPostBody）＋画像複数枚」を 1 投稿にまとめる案 B。チャットの
+// normalizeMessageBody（text | image の二者択一）は流用できないため、SNS 専用の検証点をここに 1 つ足す。
+// 上限はこの定数へ集約し、クライアント（即時フィードバック）とサーバー（確定）が同じ値で判定する。
+
+// 本文テキストの最大長。normalizeName（超過は切り捨て）とは異なり、投稿本文は超過を切り捨てず不正扱いにする
+// （呼び出し側は 400）。クライアントは同じ定数で投稿前にガードし、超過分のアップロードを走らせない（孤児画像
+// を実運用で減らす。docs/sns-post-decisions.md 4.2）。
+export const SNS_TEXT_MAX_LENGTH = 500;
+// 1 投稿に添付できる画像の最大枚数（X 風の 4 枚）。0〜4 枚が正常系（0 枚はテキストのみ投稿）。
+export const SNS_MAX_IMAGES = 4;
+
+// SNS つぶやきの入力（text＋imageIds）を検証・整形し、保存用の { body, imageIds } を返す。壊れ・不正は null
+// （呼び出し側は 400）。検証点をこの 1 関数に集約する（チャットの normalizeMessageBody と同じ思想）。
+// - text: 文字列でなければ空文字扱い。前後空白を落とし、SNS_TEXT_MAX_LENGTH 超過は null（＝切り捨てず弾く）。
+// - imageIds: 文字列の配列に整え（非文字列・空文字は落とす）、重複は残す（同じ画像を並べる指定は許容）。
+//   SNS_MAX_IMAGES 超過は null。実在確認はここではしない（validation.ts はランタイム非依存の純粋関数という制約を
+//   守る。D1 参照はできない）。実在確認はサーバーが filterExistingImageIds で行い、存在しない id を落とす
+//   （メンション先・メンバーの実在確認と同じ作法）。
+// - body.mentions は本文 text の <@userId> トークンから「サーバーが」再生成する（クライアント申告は信用しない
+//   ＝authorId 同様、真実はサーバーが確定）。空なら省略して載せない（後方互換）。
+// - text 空文字かつ imageIds 0 枚は空投稿として null（弾く）。
+export function normalizeSnsPostInput(data: {
+  text?: unknown;
+  imageIds?: unknown;
+}): { body: SnsPostBody; imageIds: string[] } | null {
+  const text = typeof data.text === 'string' ? data.text.trim() : '';
+  if (text.length > SNS_TEXT_MAX_LENGTH) return null;
+
+  const rawIds = Array.isArray(data.imageIds) ? data.imageIds : [];
+  const imageIds = rawIds
+    .filter((id): id is string => typeof id === 'string')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+  if (imageIds.length > SNS_MAX_IMAGES) return null;
+
+  // 空投稿（本文も画像も無い）は弾く。
+  if (!text && imageIds.length === 0) return null;
+
+  const mentions = extractMentions(text);
+  const body: SnsPostBody = mentions.length ? { text, mentions } : { text };
+  return { body, imageIds };
 }

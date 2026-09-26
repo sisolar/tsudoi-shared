@@ -323,8 +323,10 @@ export interface MessageResponse {
 // 画像の用途。同じ 1 つの基盤で扱い、用途を増やすときはここへ足すだけにする。
 // - 'avatar': ユーザーアイコン（user.avatarImageId から 1 枚を参照）。
 // - 'chat'  : チャット画像（MessageBody の image から imageId で参照）。
+// - 'sns'   : SNS つぶやきの添付画像（sns_post_image から imageId で参照。docs/sns-post-decisions.md）。
+//             chat と違い「同リクエストで投稿化」はしない（先にアップロードして id を得るだけ。後で投稿へ束ねる）。
 // （将来）'album' などを足す場合もこの union を広げるだけで基盤に載る。
-export type ImageUsage = 'avatar' | 'chat';
+export type ImageUsage = 'avatar' | 'chat' | 'sns';
 
 // アプリ配信 GET /api/images/:id?variant=... の variant。
 // - 'thumb': 一覧・チャット内などの通常表示用サムネ。

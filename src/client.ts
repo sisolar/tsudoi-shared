@@ -49,6 +49,13 @@ import type {
   UpdateRoomRequest,
   UploadImageResponse,
 } from '@shared/api';
+import type {
+  CreateSnsPostRequest,
+  SnsProfile,
+  SnsProfileResponse,
+  SnsPostsResponse,
+  SnsPhotosResponse,
+} from '@shared/sns';
 
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
 export type ExtraHeaders = Record<string, string>;
@@ -142,6 +149,32 @@ export interface ApiClient {
   // その部屋の全員分の既読カーソルを取得する（チャット画面マウント時の初期同期）。
   // 以後は WS の read イベントで差分更新する。自分自身も含まれ得る（描画側で除外する）。
   fetchRoomReads(roomId: string): Promise<ReadReceipt[]>;
+
+  // --- SNS つぶやき（docs/sns-post-decisions.md） ---
+  // 指定ユーザーの SNS プロフィール（名前・アイコンだけ）を取得する。投稿・写真は別メソッドで
+  // ページング取得する。存在しない id は 404 → 例外。
+  fetchSnsProfile(userId: string): Promise<SnsProfile>;
+  // 指定ユーザーのつぶやきを新しい順にページング取得する（{ posts, hasMore }）。
+  // before に「前ページ末尾の投稿」を渡すと、その (createdAt, id) より古いものを limit 件返す
+  //（複合カーソル。同一ミリ秒の取りこぼし/重複を防ぐ）。省略時は最新から。存在しない id は 404 → 例外。
+  fetchSnsPosts(
+    userId: string,
+    opts?: { before?: { createdAt: number; id: string }; limit?: number },
+  ): Promise<SnsPostsResponse>;
+  // 指定ユーザーの添付画像（アルバム）を新しい順にページング取得する（{ photos, hasMore }）。
+  // before に「前ページ末尾の写真」を渡すと、その (createdAt, postId, position) より後（古い側）を limit 件
+  // 返す（複合カーソル）。省略時は最新から。存在しない id は 404 → 例外。
+  fetchSnsPhotos(
+    userId: string,
+    opts?: {
+      before?: { createdAt: number; postId: string; position: number };
+      limit?: number;
+    },
+  ): Promise<SnsPhotosResponse>;
+  // 自分のつぶやきを投稿する（本文 text＋事前アップロード済みの imageIds を 1 リクエストでまとめて送る）。
+  // authorId はサーバーがセッションから確定する（クライアントは送らない）。成功時サーバーは 204。
+  // 応答ボディは持たないため、呼び出し側は fetchSnsPosts の再取得で反映する（createRoom と同じ思想）。
+  createSnsPost(text: string, imageIds: string[]): Promise<void>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -329,6 +362,46 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request(`/api/rooms/${roomId}/reads`);
       const data = (await res.json()) as Partial<RoomReadsResponse>;
       return data.reads ?? [];
+    },
+
+    async fetchSnsProfile(userId) {
+      const res = await request(`/api/sns/users/${userId}`);
+      const data = (await res.json()) as Partial<SnsProfileResponse>;
+      if (!data.profile) throw new Error('sns profile not found');
+      return data.profile;
+    },
+    async fetchSnsPosts(userId, opts) {
+      const params = new URLSearchParams();
+      if (opts?.before) {
+        params.set('beforeCreatedAt', String(opts.before.createdAt));
+        params.set('beforeId', opts.before.id);
+      }
+      if (opts?.limit != null) params.set('limit', String(opts.limit));
+      const query = params.toString();
+      const res = await request(`/api/sns/users/${userId}/posts${query ? `?${query}` : ''}`);
+      const data = (await res.json()) as Partial<SnsPostsResponse>;
+      return { posts: data.posts ?? [], hasMore: !!data.hasMore };
+    },
+    async fetchSnsPhotos(userId, opts) {
+      const params = new URLSearchParams();
+      if (opts?.before) {
+        params.set('beforeCreatedAt', String(opts.before.createdAt));
+        params.set('beforePostId', opts.before.postId);
+        params.set('beforePosition', String(opts.before.position));
+      }
+      if (opts?.limit != null) params.set('limit', String(opts.limit));
+      const query = params.toString();
+      const res = await request(`/api/sns/users/${userId}/photos${query ? `?${query}` : ''}`);
+      const data = (await res.json()) as Partial<SnsPhotosResponse>;
+      return { photos: data.photos ?? [], hasMore: !!data.hasMore };
+    },
+    async createSnsPost(text, imageIds) {
+      const req: CreateSnsPostRequest = { text, imageIds };
+      await request('/api/sns/posts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
     },
   };
 }

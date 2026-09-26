@@ -25,7 +25,9 @@ export const MAX_INPUT_PIXELS = 40_000_000; // 40 MP
 // Photon の get_bytes_webp は品質指定を持たないため、実質の圧縮制御は長辺（リサイズ）で行う。
 export const ORIG_MAX_EDGE: Record<ImageUsage, number> = {
   avatar: 512,
+  // sns つぶやきの添付画像は chat と同等でよい（本文＋複数画像を並べる用途。docs/sns-post-decisions.md 6 章）。
   chat: 1600,
+  sns: 1600,
 };
 
 // 通常サムネ（thumb）の長辺（px）。一覧・通常表示用。全員へ配る。
