@@ -7,6 +7,7 @@
   "private": true,
   "exports": {
     "./api": "./src/api.ts",
+    "./avatar": "./src/avatar.ts",
     "./chat": "./src/chat.ts",
     "./sns": "./src/sns.ts",
     "./client": "./src/client.ts",
