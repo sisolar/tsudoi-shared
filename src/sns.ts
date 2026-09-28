@@ -26,7 +26,8 @@ export interface SnsPostBody {
 
 // つぶやき 1 件（実データ・案 B）。本文（構造化 JSON）と画像配列を両方持つ。
 // - id / authorId / createdAt はサーバーが確定する（表示名・アイコンは焼き付けず id で持つ）。
-// - 相対時刻・いいね数は持たない（表示側で createdAt から算出／いいねは今回非対象）。
+// - 相対時刻は持たない（表示側で createdAt から算出）。いいねは likeCount／likedByMe を実データで載せる
+//   （docs/sns-post-decisions.md 1.5。集計値は焼き付けず配信直前に sns_like から解決する）。
 export interface SnsPost {
   id: string;
   // 投稿者（user.id）。表示名・アイコンは焼き付けず id で持ち、都度解決する。
@@ -39,6 +40,12 @@ export interface SnsPost {
   createdAt: number;
   // body.text にメンションがある時だけ載る（chat と同じく userId から都度解決した表示情報）。
   mentions?: MentionRef[];
+  // いいね数（sns_like を postId で COUNT した実データ。docs/sns-post-decisions.md 1.5）。
+  // 「誰が押したか」は焼き付けず、集計値だけを配信直前に載せる（authorName を都度解決するのと同じ思想）。
+  likeCount: number;
+  // 自分がこの投稿へいいねしているか（ハートの塗り分けに使う。EXISTS(postId=? AND userId=自分)）。
+  // 閲覧者依存の状態なので投稿本体には焼き付けず、取得を要求した本人視点でサーバーが載せる。
+  likedByMe: boolean;
 }
 
 // アルバム 1 枚（= 投稿に添付された画像の抜き出し）。専用テーブルは持たず sns_post_image から導出する。
@@ -95,4 +102,14 @@ export interface SnsPostsResponse {
 export interface SnsPhotosResponse {
   photos: SnsPhoto[];
   hasMore: boolean;
+}
+
+// POST /api/sns/posts/:id/like の応答（いいねのトグル結果。docs/sns-post-decisions.md 1.5）。
+// トグルは冪等（押していなければ付ける＝liked:true、押していれば外す＝liked:false）。サーバーは操作後の
+// 確定状態を返すので、クライアントは楽観更新した値をこの応答で上書きして真実に合わせられる。
+// - liked     : 操作後、自分がこの投稿へいいねしているか（SnsPost.likedByMe と同じ視点）。
+// - likeCount : 操作後のいいね総数（SnsPost.likeCount と同じ集計）。
+export interface SnsLikeResponse {
+  liked: boolean;
+  likeCount: number;
 }

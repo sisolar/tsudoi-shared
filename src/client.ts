@@ -55,6 +55,7 @@ import type {
   SnsProfileResponse,
   SnsPostsResponse,
   SnsPhotosResponse,
+  SnsLikeResponse,
 } from '@shared/sns';
 
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
@@ -175,6 +176,10 @@ export interface ApiClient {
   // authorId はサーバーがセッションから確定する（クライアントは送らない）。成功時サーバーは 204。
   // 応答ボディは持たないため、呼び出し側は fetchSnsPosts の再取得で反映する（createRoom と同じ思想）。
   createSnsPost(text: string, imageIds: string[]): Promise<void>;
+  // 指定投稿へのいいねをトグルする（docs/sns-post-decisions.md 1.5）。押していなければ付け、押していれば外す
+  // 冪等操作。userId はサーバーがセッションから確定する（クライアントは送らない）。応答は操作後の確定状態
+  // { liked, likeCount } を返すので、呼び出し側は楽観更新した値をこの応答で真実に合わせる。存在しない投稿は 404 → 例外。
+  toggleSnsLike(postId: string): Promise<SnsLikeResponse>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -402,6 +407,11 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
+    },
+    async toggleSnsLike(postId) {
+      const res = await request(`/api/sns/posts/${postId}/like`, { method: 'POST' });
+      const data = (await res.json()) as Partial<SnsLikeResponse>;
+      return { liked: !!data.liked, likeCount: data.likeCount ?? 0 };
     },
   };
 }
