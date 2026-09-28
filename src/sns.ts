@@ -46,6 +46,15 @@ export interface SnsPost {
   // 自分がこの投稿へいいねしているか（ハートの塗り分けに使う。EXISTS(postId=? AND userId=自分)）。
   // 閲覧者依存の状態なので投稿本体には焼き付けず、取得を要求した本人視点でサーバーが載せる。
   likedByMe: boolean;
+  // 返信（コメント）の親投稿 id（docs/sns-reply-decisions.md 2 章。sns_post.replyToPostId に対応）。
+  // トップレベル投稿では省略（undefined）。返信ならその直接の親（トップレベル or 別の返信）の id。
+  // スレッド画面が祖先チェーン・子一覧をこの id から組み立てる（threadAncestors / threadChildren）。
+  replyToPostId?: string;
+  // 返信数（焼き付けず取得のたびに数え直す。likeCount と同じ思想）。意味は取得経路で異なる:
+  //  - プロフィール一覧（GET /users/:id/posts）… そのスレッドの子孫総数（countDescendantsByRoot）。
+  //  - スレッド（GET .../thread の posts）… 直下の子数（countRepliesByParent）。クライアントが
+  //    threadDescendantCount で子孫合算に組み替えて描く。
+  replyCount: number;
 }
 
 // アルバム 1 枚（= 投稿に添付された画像の抜き出し）。専用テーブルは持たず sns_post_image から導出する。
@@ -113,3 +122,67 @@ export interface SnsLikeResponse {
   liked: boolean;
   likeCount: number;
 }
+
+// --- SNS 返信（コメント）機能（docs/sns-reply-decisions.md） ---
+
+// POST /api/sns/posts/:id/replies のリクエスト。指定投稿（トップレベル or 返信）への返信を作る。
+// 投稿（CreateSnsPostRequest）と同じく本文 text＋画像 imageIds を送れる（返信も画像添付可）。
+// authorId・親の rootPostId 継承はサーバーが確定する。POST は成功時 204（作成応答型なし）。
+export interface CreateSnsReplyRequest {
+  text: string;
+  imageIds: string[];
+}
+
+// GET /api/sns/posts/:id/thread の応答（docs/sns-reply-decisions.md 3.2）。
+// - root : スレッドの根（トップレベル投稿）。
+// - posts: スレッド全件（根を含む）を createdAt 昇順で。各投稿は replyToPostId / replyCount（直下の子数）を持つ。
+// フォーカス投稿を起点にした「祖先チェーン＋子一覧」と子孫合算の返信数は、クライアントが純ロジックで組み立てる
+//（threadAncestors / threadChildren / threadDescendantCount）。サーバーはスレッド全件をフラットに返すだけ。
+export interface SnsThreadResponse {
+  root: SnsPost;
+  posts: SnsPost[];
+}
+
+// スレッド全件（posts）から、フォーカス投稿の「根→…→自分」の祖先チェーンを返す純ロジック（React 非依存）。
+// replyToPostId を親へ辿るだけ（id → post の Map で O(深さ)）。先頭が根、末尾がフォーカス自身。
+// フォーカスが posts に無ければ空配列（存在しない id の防御）。posts は DAG 前提のため循環は考慮しない。
+export function threadAncestors(posts: SnsPost[], focusId: string): SnsPost[] {
+  const byId = new Map(posts.map((p) => [p.id, p]));
+  const chain: SnsPost[] = [];
+  let cur = byId.get(focusId);
+  while (cur) {
+    chain.unshift(cur); // 先頭へ積む＝根が先・自分が末尾。
+    cur = cur.replyToPostId ? byId.get(cur.replyToPostId) : undefined;
+  }
+  return chain;
+}
+
+// スレッド全件（posts）から、指定 id への直接の返信（子）を createdAt 昇順で返す純ロジック（React 非依存）。
+export function threadChildren(posts: SnsPost[], parentId: string): SnsPost[] {
+  return posts
+    .filter((p) => p.replyToPostId === parentId)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+// スレッド全件（posts）から、指定 id 配下の子孫すべて（子・孫・ひ孫…）の件数を返す純ロジック（React 非依存）。
+// parentId → 子配列の索引を 1 度作り、深さ優先で子孫を数える（スレッドは全件取得済みなので追加クエリ不要）。
+// 各カードの吹き出しバッジに「スレッドとしての返信総数」を出すのに使う。
+export function threadDescendantCount(posts: SnsPost[], id: string): number {
+  const childrenByParent = new Map<string, SnsPost[]>();
+  for (const p of posts) {
+    if (!p.replyToPostId) continue;
+    const list = childrenByParent.get(p.replyToPostId);
+    if (list) list.push(p);
+    else childrenByParent.set(p.replyToPostId, [p]);
+  }
+  let count = 0;
+  const stack = [...(childrenByParent.get(id) ?? [])];
+  while (stack.length > 0) {
+    const node = stack.pop() as SnsPost;
+    count += 1;
+    const kids = childrenByParent.get(node.id);
+    if (kids) stack.push(...kids);
+  }
+  return count;
+}
+

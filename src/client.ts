@@ -53,11 +53,13 @@ import type {
 } from '@shared/api';
 import type {
   CreateSnsPostRequest,
+  CreateSnsReplyRequest,
   SnsProfile,
   SnsProfileResponse,
   SnsPostsResponse,
   SnsPhotosResponse,
   SnsLikeResponse,
+  SnsThreadResponse,
 } from '@shared/sns';
 
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
@@ -186,6 +188,14 @@ export interface ApiClient {
   // 冪等操作。userId はサーバーがセッションから確定する（クライアントは送らない）。応答は操作後の確定状態
   // { liked, likeCount } を返すので、呼び出し側は楽観更新した値をこの応答で真実に合わせる。存在しない投稿は 404 → 例外。
   toggleSnsLike(postId: string): Promise<SnsLikeResponse>;
+  // 指定投稿（トップレベル or 返信）への返信を作る（docs/sns-reply-decisions.md）。本文 text＋事前アップロード済みの
+  // imageIds を送る（返信も画像添付可）。authorId・親の rootPostId 継承はサーバーが確定する。成功時 204。
+  // 応答ボディは持たないため、呼び出し側は fetchSnsThread の再取得で反映する。存在しない親投稿は 404 → 例外。
+  createSnsReply(parentPostId: string, text: string, imageIds: string[]): Promise<void>;
+  // フォーカス投稿の属するスレッド（根＋全レス）を取得する。focusPostId はトップレベル or 返信のどちらでもよく、
+  // サーバーが rootPostId へ正規化して同じスレッド全件を返す（{ root, posts }。posts は createdAt 昇順・根を含む）。
+  // 存在しない投稿は 404 → 例外。
+  fetchSnsThread(focusPostId: string): Promise<SnsThreadResponse>;
 }
 
 export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiClient {
@@ -423,6 +433,20 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request(`/api/sns/posts/${postId}/like`, { method: 'POST' });
       const data = (await res.json()) as Partial<SnsLikeResponse>;
       return { liked: !!data.liked, likeCount: data.likeCount ?? 0 };
+    },
+    async createSnsReply(parentPostId, text, imageIds) {
+      const req: CreateSnsReplyRequest = { text, imageIds };
+      await request(`/api/sns/posts/${parentPostId}/replies`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async fetchSnsThread(focusPostId) {
+      const res = await request(`/api/sns/posts/${focusPostId}/thread`);
+      const data = (await res.json()) as Partial<SnsThreadResponse>;
+      if (!data.root) throw new Error('sns thread not found');
+      return { root: data.root, posts: data.posts ?? [] };
     },
   };
 }
