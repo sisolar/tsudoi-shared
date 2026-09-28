@@ -177,8 +177,28 @@ export interface RoomMembersResponse {
 // GET /api/users の応答（部屋非依存の全登録ユーザー一覧＝メンバー選択画面の候補）。
 // UserPickerSheet が候補注入型になり fetch を持たなくなったため、メンバー選択用途の候補取得口として新設した
 // （docs/room-visibility-decisions.md 5.1）。要素はメンション候補と同じ MentionCandidate（表示形を共有する）。
+// ※ 最新つぶやき付きの一覧が要る用途（メンバーリストタブ）は GET /api/members（MembersResponse）を使う。
 export interface AllUsersResponse {
   users: MentionCandidate[];
+}
+
+// メンバーリスト（(tabs)/users）の 1 行分。メンション候補 MentionCandidate（id/name/avatarImageId）に加えて、
+// カード下段に出す「最新のつぶやき」を optional で載せる。
+// latestPost はプレビュー用の最小表現（本文テキストと投稿時刻だけ。画像本体・いいね等は一覧に持ち込まない）:
+//  - text      : 最新つぶやきの本文（SnsPostBody.text の生値。画像のみ投稿は空文字）。
+//  - createdAt : 最新つぶやきの投稿時刻（epoch ms。表示側が relativeTime で相対表記にする）。
+// つぶやきが 1 件も無いユーザーは latestPost を省略する（undefined）。表示側は下段を出さず名前だけの行にする
+// （部屋選択の「まだメッセージがありません」とは異なり、SNS では静かに省略する）。本文が空（画像のみ投稿）の
+// ときに「写真」等へ振り分けるのはクライアント（表示層）の責務（サーバーは text の生値をそのまま載せる）。
+export interface MemberCard extends MentionCandidate {
+  latestPost?: { text: string; createdAt: number };
+}
+
+// GET /api/members の応答（メンバーリストタブ＝(tabs)/users 専用）。全登録ユーザーを表示名順に、各ユーザーの
+// 最新つぶやき（あれば）付きで返す。要素は MentionCandidate を拡張した MemberCard。メンバー選択・メンション
+// 候補では最新つぶやきが不要なので、そちらは GET /api/users（AllUsersResponse）を使い分ける（役割で分離）。
+export interface MembersResponse {
+  members: MemberCard[];
 }
 
 // GET /api/users/:id の応答（部屋非依存の単一ユーザー取得）。SNS プロフィール画面が userId から

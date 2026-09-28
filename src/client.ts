@@ -26,6 +26,8 @@ import type {
   ListRoomsForAppResponse,
   MarkReadRequest,
   MeDto,
+  MemberCard,
+  MembersResponse,
   MentionCandidate,
   MeResponse,
   MessageResponse,
@@ -84,6 +86,10 @@ export interface ApiClient {
   // 全登録ユーザーの一覧を取得する（メンバー選択画面の候補＝部屋非依存。docs/room-visibility-decisions.md 5.1）。
   // UserPickerSheet の候補として親（RoomSettings）が渡す。メンション用途は fetchRoomMembers を使い分ける。
   fetchAllUsers(): Promise<MentionCandidate[]>;
+  // メンバーリストタブ（(tabs)/users）向けに、全登録ユーザーを「最新つぶやき付き」で取得する（GET /api/members）。
+  // 要素は MemberCard（MentionCandidate＋latestPost）。最新つぶやきが不要なメンバー選択・メンション候補は
+  // fetchAllUsers / fetchRoomMembers を使い分ける（サーバー側で SNS クエリの有無を分ける役割分担）。
+  fetchMembers(): Promise<MemberCard[]>;
   // 単一ユーザーを取得する（部屋非依存。SNS プロフィール画面が userId から名前・アイコンを実データで
   // 解決するのに使う）。存在しない id は 404 → 例外。全登録一覧（fetchAllUsers）と同じ公開表現を返す。
   fetchUser(id: string): Promise<MentionCandidate>;
@@ -232,6 +238,11 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request('/api/users');
       const data = (await res.json()) as Partial<AllUsersResponse>;
       return data.users ?? [];
+    },
+    async fetchMembers() {
+      const res = await request('/api/members');
+      const data = (await res.json()) as Partial<MembersResponse>;
+      return data.members ?? [];
     },
     async fetchUser(id) {
       const res = await request(`/api/users/${id}`);
