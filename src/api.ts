@@ -9,6 +9,7 @@
 
 // ユーザー1件の公開表現。一覧・作成の応答で使う。
 // isAdmin は ADMIN_EMAILS 判定でサーバーが付与する（DB に列は持たない）。
+// isDemo は DEMO_EMAILS 判定でサーバーが付与する（isAdmin と同形式。DB に列は持たない）。
 export interface UserDto {
   id: string;
   email: string;
@@ -16,6 +17,7 @@ export interface UserDto {
   emailVerified: boolean;
   createdAt: string; // Better Auth が返す日時文字列
   isAdmin: boolean;
+  isDemo: boolean;
   // アバター画像の id（image.id）。未設定なら null。バイナリ・状態は持たない（キーだけ）。
   // Better Auth 既定の image（URL 想定）からリネームした列。id を保持することを明示する。
   avatarImageId: string | null;
