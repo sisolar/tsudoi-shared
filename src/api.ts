@@ -377,26 +377,44 @@ export interface UploadImageResponse {
 
 // --- プッシュ通知（端末登録・管理者からの送信。docs/push-notification-poc-decisions.md） ---
 
-// 端末（Expo Push Token）のプラットフォーム。記録用（配信の出し分けには使わない）。
-export type PushPlatform = 'ios' | 'android';
+// 端末（プッシュ通知の宛先）のプラットフォーム（docs/web-push-decisions.md）。
+//  - ios / android … ネイティブ。Expo Push Token を宛先にする（push_token 表）。
+//  - web            … ブラウザ。VAPID Web Push の購読（endpoint + 鍵）を宛先にする（web_push_subscription 表）。
+// 配信経路はこの platform で分ける（sendPush の内側で Expo Push か Web Push かを仕分ける）。
+export type PushPlatform = 'ios' | 'android' | 'web';
+
+// Web Push の購読（ブラウザの PushSubscription 相当）。expo-notifications の web 版
+// getDevicePushTokenAsync が返す { endpoint, keys: { p256dh, auth } } をそのまま受ける形
+// （docs/web-push-decisions.md）。endpoint がブラウザの push エンドポイント（＝一意キー）、
+// keys がペイロード暗号化（aes128gcm）に使う公開鍵と認証シークレット。
+export interface WebPushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
 
 // POST /api/devices のリクエストボディ（本人の端末を通知有効化＝登録する）。
-// token はアプリが取得した Expo Push Token（ExponentPushToken[...]）。
+// platform で宛先の形が変わるため判別可能ユニオンにする（docs/web-push-decisions.md「共有契約」）:
+//  - ネイティブ（ios/android）… token にアプリが取得した Expo Push Token（ExponentPushToken[...]）。
+//  - web                       … subscription にブラウザの購読（endpoint + 鍵）。
 // userId はサーバーがセッションから解決するためクライアントは送らない。
-// 通知の「無効化」はこの経路ではなく DELETE /api/devices（token 指定）で行う（物理削除）。
-export interface RegisterDeviceRequest {
-  token: string;
-  platform: PushPlatform;
-}
+// 通知の「無効化」はこの経路ではなく DELETE /api/devices（token/endpoint 指定）で行う（物理削除）。
+export type RegisterDeviceRequest =
+  | { platform: 'ios' | 'android'; token: string }
+  | { platform: 'web'; subscription: WebPushSubscription };
 
 // DELETE /api/devices のリクエストボディ（本人の端末を通知無効化＝物理削除する）。
-// 自分が所有する token だけ消せる（userId はセッションで確定し、一致しない token は消さない）。
-export interface UnregisterDeviceRequest {
-  token: string;
-}
+// ネイティブは token（Expo Push Token）、web は endpoint を一意キーに消す。
+// 自分が所有する行だけ消せる（userId はセッションで確定し、一致しない行は消さない）。
+export type UnregisterDeviceRequest =
+  | { platform: 'ios' | 'android'; token: string }
+  | { platform: 'web'; endpoint: string };
 
-// GET /api/devices/status?token=... の応答。設定画面が現在の端末の状態を初期表示するのに使う。
-// enabled は「この token が push_token 台帳に存在するか（＝通知有効か）」。存在＝有効の一元表現。
+// GET /api/devices/status?... の応答。設定画面が現在の端末の状態を初期表示するのに使う。
+// enabled は「この端末（token / endpoint）が台帳に存在するか（＝通知有効か）」。存在＝有効の一元表現。
+// 照会キーはネイティブが token、web が endpoint（クエリ名はそれぞれ token / endpoint）。
 export interface DeviceStatusResponse {
   enabled: boolean;
 }

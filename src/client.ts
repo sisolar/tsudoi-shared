@@ -35,7 +35,6 @@ import type {
   MutedRoomsResponse,
   RoomMembersResponse,
   MyReadsResponse,
-  PushPlatform,
   ReadCursor,
   ReadReceipt,
   RegisterDeviceRequest,
@@ -132,13 +131,17 @@ export interface ApiClient {
   // 画像は検閲せず全員へ公開するため、URL は id と variant だけで足りる。
   imageUrl(id: string, variant: ImageVariant): string;
 
-  // --- プッシュ通知の端末登録（本人向け。docs/push-notification-poc-decisions.md） ---
-  // この端末（Expo Push Token）の通知を有効化する（登録する）。既存 token の再登録は upsert。
-  registerDevice(token: string, platform: PushPlatform): Promise<void>;
-  // この端末の通知を無効化する（その token を物理削除する）。存在しなくても成功扱い。
-  unregisterDevice(token: string): Promise<void>;
+  // --- プッシュ通知の端末登録（本人向け。docs/push-notification-poc-decisions.md・web-push-decisions.md） ---
+  // この端末の通知を有効化する（登録する）。req は platform で分岐する判別可能ユニオン:
+  //  - ネイティブ（ios/android）… { platform, token }（Expo Push Token。再登録は upsert）。
+  //  - web                       … { platform: 'web', subscription }（ブラウザの購読。endpoint 主キーで upsert）。
+  registerDevice(req: RegisterDeviceRequest): Promise<void>;
+  // この端末の通知を無効化する（その宛先を物理削除する）。存在しなくても成功扱い。
+  //  - ネイティブ … { platform, token }。web … { platform: 'web', endpoint }。
+  unregisterDevice(req: UnregisterDeviceRequest): Promise<void>;
   // この端末の現在の通知状態（有効か）を取得する。設定画面のトグル初期値に使う。
-  getDeviceStatus(token: string): Promise<boolean>;
+  // 照会キーはネイティブが token、web が endpoint（どちらか一方を渡す）。
+  getDeviceStatus(key: { token: string } | { endpoint: string }): Promise<boolean>;
 
   // --- 部屋ごと・ユーザー個別の通知ミュート（本人向け。docs/room-mute-notification-decisions.md） ---
   // この部屋を自分がミュートしているか（＝通知 OFF か）を取得する。ヘッダーのベル表示の初期値に使う。
@@ -329,24 +332,27 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       return `${baseUrl}/api/images/${id}?variant=${variant}`;
     },
 
-    async registerDevice(token, platform) {
-      const req: RegisterDeviceRequest = { token, platform };
+    async registerDevice(req) {
       await request('/api/devices', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
     },
-    async unregisterDevice(token) {
-      const req: UnregisterDeviceRequest = { token };
+    async unregisterDevice(req) {
       await request('/api/devices', {
         method: 'DELETE',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
     },
-    async getDeviceStatus(token) {
-      const res = await request(`/api/devices/status?token=${encodeURIComponent(token)}`);
+    async getDeviceStatus(key) {
+      // ネイティブは token、web は endpoint をクエリに載せて照会する。
+      const query =
+        'token' in key
+          ? `token=${encodeURIComponent(key.token)}`
+          : `endpoint=${encodeURIComponent(key.endpoint)}`;
+      const res = await request(`/api/devices/status?${query}`);
       const data = (await res.json()) as Partial<DeviceStatusResponse>;
       return data.enabled ?? false;
     },
