@@ -32,6 +32,12 @@ export interface SnsPost {
   id: string;
   // 投稿者（user.id）。表示名・アイコンは焼き付けず id で持ち、都度解決する。
   authorId: string;
+  // 投稿者の表示名（authorId から user.name を解決した生の値。未設定は空文字＝表示境界で「名無し」に倒す）。
+  // 本体に焼き付けず配信直前に都度解決するため、改名が過去分含め即反映される（chat の authorName と同じ思想）。
+  authorName: string;
+  // 投稿者のアイコン画像 id（authorId から user.avatarImageId を解決した値。未設定は null＝頭文字円）。
+  // authorName と同じく保持せず都度解決するため、アイコン差し替えが即反映される（バイナリは持たずキーだけ）。
+  avatarImageId: string | null;
   // 本文（構造化 JSON）。DB には JSON 文字列で保存し、API/データアクセス境界でこのオブジェクトに戻す。
   body: SnsPostBody;
   // 添付画像 id（image.id）の配列。position 昇順。0 枚ならテキストのみ投稿。
