@@ -12,6 +12,7 @@
     "./sns": "./src/sns.ts",
     "./client": "./src/client.ts",
     "./call": "./src/call.ts",
+    "./caption": "./src/caption.ts",
     "./validation": "./src/validation.ts",
     "./image-constraints": "./src/image-constraints.ts"
   }

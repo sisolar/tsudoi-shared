@@ -252,9 +252,14 @@ export interface UpdateRoomRequest {
 // 都度解決する（authorName と同じ思想。改名がメンション表示にも即反映される）。mentions は任意プロパティ
 // （既存の保存済みメッセージ＝mentions 無しと前方・後方互換）。この値はサーバー（normalizeMessageBody）が
 // text から再生成して確定する（クライアント申告は信用しない＝authorId と同じ「真実はサーバーが作る」）。
+// - caption: 通話の字幕（自分の声を文字にしたもの。docs/livekit-decisions.md D32）。見た目は text と同じ（今は区別しない）。
+//   メンションは持たない。この type はサーバーが確定し、クライアントからは作れない（通常のテキスト送信
+//   POST /api/rooms/:id/messages は text 専用で、caption を弾く。作れるのは Caption DO からの内部経路だけ。
+//   authorId・mentions と同じく「真実はサーバーが作る」）。通知（Push）は送らない（room-do.ts の enqueueNotifications が除外）。
 export type MessageBody =
   | { type: 'text'; text: string; mentions?: string[] }
-  | { type: 'image'; imageId: string };
+  | { type: 'image'; imageId: string }
+  | { type: 'caption'; text: string };
 
 // POST /api/rooms/:id/messages のリクエストボディ（アプリのテキスト送信）。
 // メッセージ送信は HTTP に一本化する（WebSocket は受信=配信専用）。本文は MessageBody を載せる。

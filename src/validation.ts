@@ -13,6 +13,7 @@ import {
   MAX_UPLOAD_BYTES,
 } from './image-constraints';
 import type { ImageUsage, ImageVariant, MessageBody, RoomVisibility } from './api';
+import { normalizeCaptionText } from './caption';
 import type { SnsPostBody } from './sns';
 
 // 表示名(name)の最大長。絵文字・多言語を許容し、型不正のみ禁止（空・長すぎは正常系）。
@@ -137,14 +138,26 @@ function normalizeImageBody(b: Record<string, unknown>): MessageBody | null {
   return imageId ? { type: 'image', imageId } : null;
 }
 
+// caption 本文（通話の字幕。docs/livekit-decisions.md D32）を整形する。認識結果の text を normalizeCaptionText で整え、
+// 空・型不正なら null（保存しない）。caption はメンションを持たない。
+function normalizeCaptionBody(b: Record<string, unknown>): MessageBody | null {
+  const text = normalizeCaptionText(b.text);
+  return text ? { type: 'caption', text } : null;
+}
+
 // 受信入力（{ body: MessageBody }）から保存用の body を検証・整形する。壊れ・未対応は null。
-// text / image 以外の type は受け付けない（未知 type は型・実装ともに拒否する）。
+// text / image / caption 以外の type は受け付けない（未知 type は型・実装ともに拒否する）。
+//
+// 注意: この関数は caption も通す（Room DO の内部保存＝防御的な二重検証が、字幕を保存するため同じ関数を通す）。
+// そのため、クライアントから body を受ける入口（POST /api/rooms/:id/messages）は、通した結果が caption なら
+// 弾くこと（その入口は text 専用）。字幕を作れるのは Caption DO からの内部経路（postMessageDO）だけにする。
 export function normalizeMessageBody(data: { body?: unknown }): MessageBody | null {
   const raw = data.body;
   if (!raw || typeof raw !== 'object') return null;
   const b = raw as Record<string, unknown>;
   if (b.type === 'text') return normalizeTextBody(b);
   if (b.type === 'image') return normalizeImageBody(b);
+  if (b.type === 'caption') return normalizeCaptionBody(b);
   return null;
 }
 

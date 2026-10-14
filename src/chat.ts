@@ -43,6 +43,8 @@ export function replyPreviewText(msg: ChatMessage | null | undefined): string {
 // トークンを取り除いて素の文字列にする（プレビュー・SNS 等、ハイライト描画をしない場所で使う）。
 // ハイライト表示（色付き）が要る場所は splitMentionSegments を使う。
 export const bodyText = (b: MessageBody, refs?: MentionRef[]): string => {
+  // 字幕（caption）は見た目も text と同じ扱い（メンションを持たないので本文をそのまま返す。D32）。
+  if (b.type === 'caption') return b.text;
   if (b.type !== 'text') return '';
   if (!b.mentions || b.mentions.length === 0) return b.text;
   const nameOf = new Map((refs ?? []).map((r) => [r.userId, r.name]));
