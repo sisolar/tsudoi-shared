@@ -49,7 +49,8 @@ export type CallDialogKind =
   | 'unavailable'
   | 'no_access'
   | 'ended'
-  | 'busy_other_room';
+  | 'busy_other_room'
+  | 'notification_denied';
 
 // アプリ側が livekit-client の DisconnectReason から変換して渡す切断理由（共有の型）。
 export type CallDisconnectReason =
