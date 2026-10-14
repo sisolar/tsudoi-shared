@@ -470,6 +470,19 @@ export interface MutedRoomsResponse {
   roomIds: string[];
 }
 
+// --- 通話（LiveKit。docs/livekit-decisions.md D17） ---
+
+// POST /api/rooms/:id/call-token の応答。リクエストボディは無い（部屋 id はパス、userId はセッションで確定）。
+// 入室のたびに新しく取得し、保存・再利用しない（有効期限は 10 分。D12）。
+export interface CallTokenResponse {
+  // LiveKit のアクセストークン（JWT）。
+  token: string;
+  // 接続先 LiveKit の URL（wss://...）。サーバーの設定値から返す（アプリに焼き込まない。D30）。
+  url: string;
+  // LiveKit ルーム名（{prefix}:{roomId}。D10）。クライアントは組み立てない。
+  roomName: string;
+}
+
 // --- 既読（未読バッジ＋相手の既読表示。docs/read-receipt-decisions.md） ---
 
 // PUT /api/rooms/:id/read のリクエストボディ（この部屋を seq まで読んだと記録する）。

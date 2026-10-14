@@ -40,6 +40,7 @@ import type {
   RegisterDeviceRequest,
   RoomSummary,
   RoomNotificationResponse,
+  CallTokenResponse,
   RoomReadsResponse,
   RoomVisibility,
   CreateRoomRequest,
@@ -63,6 +64,14 @@ import type {
 
 // 追加ヘッダの型。Cookie など単純なキー・値だけを扱う（スプレッドで合流できる形に絞る）。
 export type ExtraHeaders = Record<string, string>;
+
+// 通話トークン取得の失敗。HTTP ステータスを保持し、呼び出し側が D26 のダイアログ種別へ分類する。
+export class CallTokenError extends Error {
+  constructor(public readonly status: number) {
+    super(`call-token failed: ${status}`);
+    this.name = 'CallTokenError';
+  }
+}
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -150,6 +159,11 @@ export interface ApiClient {
   setRoomNotification(roomId: string, muted: boolean): Promise<void>;
   // 自分がミュートしている部屋 id の一覧を取得する。待機画面がベルアイコン表示に使う。
   fetchMutedRoomIds(): Promise<string[]>;
+
+  // --- 通話（本人向け。docs/livekit-decisions.md D17） ---
+  // 通話の入室トークンを取得する（POST /api/rooms/:id/call-token）。入室のたびに呼び、保存しない。
+  // 失敗時は CallTokenError（HTTP ステータス付き）を投げる。404=アクセス不可、503=通話未設定（D26 の分類に使う）。
+  fetchCallToken(roomId: string): Promise<CallTokenResponse>;
 
   // --- 既読（本人向け。docs/read-receipt-decisions.md） ---
   // 自分の全部屋の既読カーソルを取得する（fetchMutedRoomIds と対称）。待機画面が未読件数
@@ -375,6 +389,19 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
       const res = await request('/api/rooms/mutes');
       const data = (await res.json()) as Partial<MutedRoomsResponse>;
       return data.roomIds ?? [];
+    },
+
+    async fetchCallToken(roomId) {
+      // request() はステータスを文字列にしか残さないため、ここだけ直接 fetch して status を保持した例外にする。
+      const extra = getHeaders ? await getHeaders() : undefined;
+      const res = await fetch(`${baseUrl}/api/rooms/${roomId}/call-token`, {
+        method: 'POST',
+        headers: { ...extra },
+      });
+      if (!res.ok) throw new CallTokenError(res.status);
+      const data = (await res.json()) as Partial<CallTokenResponse>;
+      if (!data.token || !data.url || !data.roomName) throw new CallTokenError(502);
+      return { token: data.token, url: data.url, roomName: data.roomName };
     },
 
     async fetchMyReads() {
