@@ -375,7 +375,7 @@ export interface UploadImageResponse {
   image: ImageDto;
 }
 
-// --- プッシュ通知（端末登録・管理者からの送信。docs/push-notification-poc-decisions.md） ---
+// --- プッシュ通知（端末登録・通知 data。docs/push-notification-poc-decisions.md） ---
 
 // 端末（プッシュ通知の宛先）のプラットフォーム（docs/web-push-decisions.md）。
 //  - ios / android … ネイティブ。Expo Push Token を宛先にする（push_token 表）。
