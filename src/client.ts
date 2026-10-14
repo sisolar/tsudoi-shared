@@ -66,10 +66,15 @@ import type {
 export type ExtraHeaders = Record<string, string>;
 
 // 通話トークン取得の失敗。HTTP ステータスを保持し、呼び出し側が D26 のダイアログ種別へ分類する。
+// erasableSyntaxOnly（admin-ui の tsconfig）はパラメータプロパティ（constructor(public x)）を禁止するため、
+// フィールドを明示的に宣言して代入する。
 export class CallTokenError extends Error {
-  constructor(public readonly status: number) {
+  readonly status: number;
+
+  constructor(status: number) {
     super(`call-token failed: ${status}`);
     this.name = 'CallTokenError';
+    this.status = status;
   }
 }
 
