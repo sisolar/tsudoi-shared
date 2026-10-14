@@ -83,6 +83,33 @@ export function dialogForTokenStatus(status: number): CallDialogKind {
   return 'join_failed';
 }
 
+// ---- 映像の排他（D24）--------------------------------------------------------------------------
+
+// 発信している映像の種類。カメラと画面共有は同時に発信できない（排他）ので 1 人につき 3 値のどれか 1 つ。
+export type VideoMode = 'none' | 'camera' | 'screen';
+
+// 映像の状態を「画面共有 > カメラ > なし」の優先で 1 つに決める（タイルの中身の優先順と同じ）。
+// LiveKit が両方 true を返す一瞬（切り替えの途中）があっても、常に 1 つに畳める。
+export function resolveVideoMode(opts: { screenOn: boolean; cameraOn: boolean }): VideoMode {
+  if (opts.screenOn) return 'screen';
+  if (opts.cameraOn) return 'camera';
+  return 'none';
+}
+
+// 現在の映像から、次の映像へ切り替えるために「止める必要があるもの」と「始めるもの」を返す。
+// 排他なので、新しい映像を始める前に、今出している別の映像を必ず止める。
+//  - 同じ種類への切り替えは何もしない。
+//  - 'none' への切り替えは、今出している映像を止めるだけ。
+export function planVideoSwitch(
+  current: VideoMode,
+  next: VideoMode,
+): { stop: Exclude<VideoMode, 'none'>[]; start: Exclude<VideoMode, 'none'> | null } {
+  if (current === next) return { stop: [], start: null };
+  const stop: Exclude<VideoMode, 'none'>[] = current === 'none' ? [] : [current];
+  const start = next === 'none' ? null : next;
+  return { stop, start };
+}
+
 // ---- 映像ボタンの選択肢（D24）------------------------------------------------------------------
 
 export type VideoSourceChoice = 'camera' | 'screen';
