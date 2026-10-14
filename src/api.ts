@@ -419,20 +419,6 @@ export interface DeviceStatusResponse {
   enabled: boolean;
 }
 
-// POST /admin/api/users/:id/push のリクエストボディ（管理者が指定ユーザーの全端末へ送る）。
-// title / body は通知の見出し・本文。PoC では管理者が任意の文言で送信できる。
-export interface AdminPushRequest {
-  title: string;
-  body: string;
-}
-
-// POST /admin/api/users/:id/push の応答。
-// sent は Expo へ送信を試みた端末数、removed は DeviceNotRegistered で掃除した端末数。
-export interface AdminPushResponse {
-  sent: number;
-  removed: number;
-}
-
 // プッシュ通知に載せる data ペイロード（Expo Push の data フィールド）。
 // 必ず type 付きで送り、受信側（アプリ）は type で振り分ける（未知 type は無視＝前方互換）。
 // 通知の種類を増やすときは、新しい *PushData を足して PushData の union に加えるだけでよい
