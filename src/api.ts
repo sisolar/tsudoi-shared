@@ -277,6 +277,16 @@ export interface SendMessageRequest {
   replyTo?: number;
 }
 
+// POST /api/rooms/:id/captions のリクエストボディ（端末内で文字にした字幕 1 件。docs/livekit-decisions.md D32「iOS の字幕」）。
+// iOS は端末内の文字起こし（DictationTranscriber 等）で自分の声を文字にするため、サーバー（Caption DO・Azure）を通らない。
+// 確定した 1 断片を、この入口でチャットへ載せる（type: 'caption'。通知は積まない）。
+// 話者（authorId）はセッションで確定する（クライアントは送らない）。文の中身はクライアントが決める
+// （通常のテキスト送信と同じ信用の強さ。自分の名前で、自分が書いた文を投稿するのと同じ）。
+// 検証は normalizeCaptionText（前後の空白を落とし、500 文字で切り、空は 400）。
+export interface SendCaptionRequest {
+  text: string;
+}
+
 // サーバー(DO)が配信・履歴で吐く「メッセージ1件の公開表現（DTO）」。seq は DO が採番する連番。
 // 同じ API（DO の /history・WS 配信）を、サーバー・管理画面・アプリが同じ形で受け取るための
 // 唯一の契約。各プロジェクトでワイヤー型を再定義しない（食い違いを構造的に防ぐ）。

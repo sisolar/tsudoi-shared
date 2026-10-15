@@ -44,6 +44,7 @@ import type {
   RoomReadsResponse,
   RoomVisibility,
   CreateRoomRequest,
+  SendCaptionRequest,
   SendMessageRequest,
   UnregisterDeviceRequest,
   UpdateMeRequest,
@@ -125,6 +126,9 @@ export interface ApiClient {
   // replyTo を渡すと「その seq への返信」として送る（docs/reply-decisions.md）。実在確認は
   // サーバー（DO）が行い、存在しない seq は落とす。省略時は通常メッセージ。
   sendTextMessage(roomId: string, text: string, replyTo?: number): Promise<void>;
+  // 端末内で文字にした字幕 1 件を、チャットへ載せる（POST /api/rooms/:id/captions。D32「iOS の字幕」）。
+  // 話者はセッションで確定する。成功時サーバーは 204。空・長すぎは 400、非メンバーは 404。
+  sendCaption(roomId: string, text: string): Promise<void>;
   // 単一メッセージ（seq 指定）を取得する（返信の引用チップが引用元 1 件を引くのに使う。
   // docs/reply-decisions.md 3.1）。存在しない seq は 404 → 例外。
   fetchRoomMessage(roomId: string, seq: number): Promise<ChatMessageDto>;
@@ -297,6 +301,14 @@ export function createApiClient({ baseUrl, getHeaders }: ApiClientOptions): ApiC
         visibility === 'private' ? { name, visibility, memberIds: memberIds ?? [] } : { name, visibility };
       await request(`/api/rooms/${id}`, {
         method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+    },
+    async sendCaption(roomId, text) {
+      const req: SendCaptionRequest = { text };
+      await request(`/api/rooms/${roomId}/captions`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(req),
       });
